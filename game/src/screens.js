@@ -1,6 +1,6 @@
 // Canvas poster and mission cards. The 3D world stays visible behind these screens; the selected
 // card is held on world.menuIndex so keyboard selection and drawing never disagree.
-import { DESIGN, FONT, HUD, MISSIONS, PALETTE } from './config.js';
+import { BEST_KEY, DESIGN, FONT, HUD, MISSIONS, PALETTE } from './config.js';
 
 function tracked(ctx, value, x, y, size, colour, spacing = 2, align = 'left') {
   ctx.font = `700 ${size}px ${FONT.ui}`;
@@ -169,18 +169,79 @@ function drawMissionSelect(ctx, world) {
 }
 
 function drawPaused(ctx) {
-  ctx.fillStyle = 'rgba(7,25,30,0.62)';
+  ctx.fillStyle = 'rgba(7,25,30,0.68)';
   ctx.fillRect(0, 0, DESIGN.width, DESIGN.height);
-  ctx.fillStyle = 'rgba(12,40,46,0.96)';
+  ctx.fillStyle = 'rgba(12,40,46,0.97)';
   ctx.strokeStyle = HUD.brass;
   ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.roundRect(390, 270, 500, 250, 8);
+  ctx.roundRect(330, 185, 620, 425, 8);
   ctx.fill();
   ctx.stroke();
-  tracked(ctx, 'PAUSED', DESIGN.width / 2, 330, 40, HUD.cream, 6, 'center');
-  tracked(ctx, 'P OR ESC TO RESUME', DESIGN.width / 2, 403, 15, HUD.amber, 2, 'center');
-  tracked(ctx, 'R TO RESTART', DESIGN.width / 2, 449, 13, HUD.cream, 2, 'center');
+  ctx.fillStyle = HUD.brass;
+  ctx.fillRect(330, 185, 620, 6);
+  tracked(ctx, 'PAUSED', DESIGN.width / 2, 250, 44, HUD.cream, 6, 'center');
+  tracked(ctx, 'THE CRADLE COAST · FLIGHT SUSPENDED', DESIGN.width / 2, 298, 12, HUD.brass, 2, 'center');
+  ctx.strokeStyle = 'rgba(198,154,82,0.42)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(370, 326); ctx.lineTo(910, 326);
+  ctx.stroke();
+  tracked(ctx, 'W/S PITCH   ·   A/D ROLL   ·   Q/E RUDDER', DESIGN.width / 2, 361, 15, HUD.cream, 1.6, 'center');
+  tracked(ctx, 'SHIFT/CTRL THROTTLE   ·   G GEAR   ·   C CAMERA', DESIGN.width / 2, 401, 15, HUD.cream, 1.6, 'center');
+  tracked(ctx, 'M MUTE   ·   R RESTART   ·   P/ESC RESUME', DESIGN.width / 2, 441, 15, HUD.cream, 1.6, 'center');
+  label(ctx, 'MOUSE: HOLD LEFT BUTTON AND MOVE TO STEER · WHEEL THROTTLE', DESIGN.width / 2, 490, 12,
+    'rgba(243,231,206,0.68)', 'center', 500);
+  tracked(ctx, 'P OR ESC TO RESUME', DESIGN.width / 2, 554, 16, HUD.amber, 2.4, 'center');
+}
+
+function storedBestScore() {
+  try {
+    const stored = Number(window.localStorage.getItem(BEST_KEY));
+    return Number.isFinite(stored) && stored > 0 ? stored : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function drawDebrief(ctx, world) {
+  ctx.fillStyle = 'rgba(7,25,30,0.74)';
+  ctx.fillRect(0, 0, DESIGN.width, DESIGN.height);
+  ctx.fillStyle = 'rgba(12,40,46,0.97)';
+  ctx.strokeStyle = HUD.brass;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.roundRect(310, 135, 660, 530, 8);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = HUD.brass;
+  ctx.fillRect(310, 135, 660, 6);
+
+  const score = Math.max(0, Math.round(Number(world.score) || 0));
+  const best = Math.max(score, storedBestScore());
+  const home = world.mission.kind === 'home';
+  const total = world.mission.rings.length;
+  const result = home ? (world.grade || 'NOT LANDED') : `${world.mission.ringsPassed} / ${total}`;
+  const resultLabel = home ? 'LANDING GRADE' : world.mission.kind === 'fjord' ? 'GATES PASSED' : 'RINGS PASSED';
+
+  tracked(ctx, world.mission.name, DESIGN.width / 2, 188, 15, HUD.amber, 3, 'center');
+  tracked(ctx, world.state.crashed ? 'WRECKED' : 'SORTIE ENDED', DESIGN.width / 2, 246, 42,
+    world.state.crashed ? HUD.red : HUD.cream, 4, 'center');
+  tracked(ctx, resultLabel, DESIGN.width / 2, 309, 12, HUD.brass, 2.2, 'center');
+  tracked(ctx, result, DESIGN.width / 2, 356, home ? 46 : 52, HUD.cream, 3, 'center');
+
+  ctx.strokeStyle = 'rgba(198,154,82,0.42)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(355, 406); ctx.lineTo(925, 406);
+  ctx.stroke();
+  tracked(ctx, 'SCORE', 485, 442, 12, HUD.brass, 2, 'center');
+  tracked(ctx, 'BEST SCORE', 795, 442, 12, HUD.brass, 2, 'center');
+  label(ctx, score.toLocaleString('en-US'), 485, 486, 40, HUD.cream, 'center', 800);
+  label(ctx, best.toLocaleString('en-US'), 795, 486, 40, HUD.amber, 'center', 800);
+  tracked(ctx, 'SPACE TO FLY AGAIN · ESC FOR MISSIONS', DESIGN.width / 2, 584, 14, HUD.amber, 1.8, 'center');
+  label(ctx, 'R restarts the selected sortie immediately.', DESIGN.width / 2, 624, 12,
+    'rgba(243,231,206,0.62)', 'center', 500);
 }
 
 export function drawScreen(ctx, name, world, w, h) {
@@ -193,10 +254,5 @@ export function drawScreen(ctx, name, world, w, h) {
   if (name === 'TITLE') drawTitle(ctx);
   else if (name === 'MENU' || name === 'MISSION SELECT') drawMissionSelect(ctx, world);
   else if (name === 'PAUSED') drawPaused(ctx);
-  else if (name === 'DEBRIEF') {
-    ctx.fillStyle = 'rgba(7,25,30,0.72)';
-    ctx.fillRect(0, 0, DESIGN.width, DESIGN.height);
-    tracked(ctx, world.state.crashed ? 'WRECKED' : 'SORTIE ENDED', DESIGN.width / 2, 360, 46, world.state.crashed ? HUD.red : HUD.cream, 5, 'center');
-    tracked(ctx, 'R TO FLY AGAIN  ·  ESC FOR MISSIONS', DESIGN.width / 2, 435, 14, HUD.amber, 2, 'center');
-  }
+  else if (name === 'DEBRIEF') drawDebrief(ctx, world);
 }

@@ -13,6 +13,8 @@ import { createCameraRig, updateCamera } from './camera.js';
 import { drawHud } from './hud.js';
 import { drawScreen } from './screens.js';
 import { stageShot } from './shots.js';
+import { createEffects, resetEffects, updateEffects } from './effects.js';
+import { createAudio } from './audio.js';
 
 const params = new URLSearchParams(window.location.search);
 const shotName = params.get('shot');
@@ -47,6 +49,9 @@ const terrain = createTerrain(scene);
 const sky = createSky(scene, seed);
 const sunGlow = scene.getObjectByName('Sun glow');
 const aircraft = createAircraft(scene);
+const effects = createEffects(scene);
+const audio = createAudio();
+const audioEvents = { initialized: false, rings: 0, touchdownTime: -1, crashed: false };
 const airfield = createAirfield(scene);
 const lighthouse = createLighthouse(scene);
 let rings = createRings(scene, world.mission);
@@ -85,7 +90,6 @@ let cameraMode = 'chase';
 let fps = 60;
 let lastFrameTime = performance.now();
 let accumulator = 0;
-let audioContext = null;
 let announcedScreen = '';
 
 function announce(message) {
@@ -105,18 +109,37 @@ function setScreen(next) {
 }
 
 function unlockAudio() {
-  try {
-    if (!audioContext) {
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (AudioContextClass) audioContext = new AudioContextClass();
-    }
-    if (audioContext?.state === 'suspended') audioContext.resume().catch(() => {});
-  } catch {
-    audioContext = null;
-  }
+  audio.start();
 }
-window.addEventListener('keydown', unlockAudio, { once: true });
-sceneCanvas.addEventListener('pointerdown', unlockAudio, { once: true });
+window.addEventListener('keydown', unlockAudio, { passive: true });
+window.addEventListener('pointerdown', unlockAudio, { passive: true });
+window.addEventListener('click', unlockAudio);
+
+function syncAudioEvents() {
+  if (!audioEvents.initialized) {
+    audioEvents.rings = world.mission.ringsPassed;
+    audioEvents.initialized = true;
+  }
+  const passed = world.mission.ringsPassed;
+  if (passed > audioEvents.rings) {
+    const count = Math.min(passed - audioEvents.rings, world.mission.rings.length);
+    for (let index = 0; index < count; index += 1) audio.ring();
+  }
+  audioEvents.rings = passed;
+
+  const touchdown = world.state.touchdown;
+  if (touchdown) {
+    if (touchdown.time !== audioEvents.touchdownTime) {
+      audio.touchdown(touchdown.grade);
+      audioEvents.touchdownTime = touchdown.time;
+    }
+  } else {
+    audioEvents.touchdownTime = -1;
+  }
+
+  if (world.crashed && !audioEvents.crashed) audio.crash();
+  audioEvents.crashed = world.crashed;
+}
 
 function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -135,6 +158,9 @@ resize();
 
 function renderFrame(dt) {
   updateAircraft(aircraft, world.state, dt);
+  updateEffects(effects, world, dt);
+  syncAudioEvents();
+  audio.updateFlight(world.state);
   airfield.update(world.clock);
   lighthouse.update(world.clock);
   updateRings(rings, world.mission.activeRing, world.clock);
@@ -161,6 +187,11 @@ function renderFrame(dt) {
 
 function startMission(index = world.menuIndex) {
   world.startMission(index);
+  resetEffects(effects);
+  audioEvents.initialized = false;
+  audioEvents.rings = 0;
+  audioEvents.touchdownTime = -1;
+  audioEvents.crashed = false;
   rebuildRings();
   cameraMode = 'chase';
   cameraRig.initialized = false;
@@ -174,6 +205,11 @@ function startFreeFlight() {
 
 function runShot(name) {
   const staged = stageShot(name, world);
+  resetEffects(effects);
+  audioEvents.initialized = false;
+  audioEvents.rings = 0;
+  audioEvents.touchdownTime = -1;
+  audioEvents.crashed = false;
   rebuildRings();
   if (staged.ringIndex >= 0) pickActiveRing(rings, staged.ringIndex);
   screen = staged.screen;
@@ -223,6 +259,7 @@ function runGame() {
 
   function handleActions() {
     const actions = input.takeActions();
+    if (actions & ACTION_MUTE) audio.muted = !audio.muted;
     if (screen === 'TITLE') {
       if (actions & ACTION_CONFIRM) setScreen('MENU');
     } else if (screen === 'MENU') {
@@ -236,7 +273,6 @@ function runGame() {
         cameraRig.initialized = false;
       }
       if (actions & ACTION_RESTART) startFreeFlight();
-      void ACTION_MUTE;
     } else if (screen === 'PAUSED') {
       if (actions & (ACTION_PAUSE | ACTION_CONFIRM)) setScreen('FLYING');
       else if (actions & ACTION_RESTART) startFreeFlight();
@@ -327,8 +363,8 @@ window.__diag = () => {
     speed: Number(world.state.speed.toFixed(2)),
     altitude: Number(world.state.position.y.toFixed(2)),
     heading: Number(world.state.heading.toFixed(2)),
-    rings: Math.max(0, world.mission.ringsPassed),
     score: world.score,
+    effects: effects.live,
     ringScreen,
     error: firstError,
   };

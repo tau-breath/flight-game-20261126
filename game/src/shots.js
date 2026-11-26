@@ -19,7 +19,7 @@ function stageCover(world) {
   world.startMission(0);
   const ring = world.mission.rings[2];
   const heading = ring.heading * Math.PI / 180;
-  const startDistance = 272;
+  const startDistance = 195;
   world.reset([
     ring.x - Math.sin(heading) * startDistance,
     340,
