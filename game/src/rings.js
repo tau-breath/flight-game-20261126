@@ -25,7 +25,7 @@ function haloTexture() {
 }
 
 export function createRings(scene, mission) {
-  const route = mission.route || [];
+  const route = mission.rings || mission.route || [];
   const group = new THREE.Group();
   group.name = `${mission.name} gates`;
   scene.add(group);
@@ -45,7 +45,7 @@ export function createRings(scene, mission) {
     group.add(torus);
 
     const halo = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: haloMap, color: '#FFC46B', transparent: true, opacity: 0.9,
+      map: haloMap, color: '#FFC46B', transparent: true, opacity: 0.05,
       blending: THREE.AdditiveBlending, depthWrite: false,
     }));
     halo.position.copy(torus.position);
@@ -80,7 +80,7 @@ export function updateRings(rings, index, time) {
   const ring = rings[index];
   if (!ring) return;
   const pulse = 0.5 + 0.5 * Math.sin(time * Math.PI * 2 * 1.5);
-  ring.halo.scale.setScalar(90 * (0.96 + pulse * 0.08));
+  ring.halo.scale.setScalar(46 * (0.96 + pulse * 0.08));
   ring.halo.material.opacity = 0.68 + pulse * 0.3;
   ring.material.emissiveIntensity = 1.35 + pulse * 0.5;
 }

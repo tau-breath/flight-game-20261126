@@ -30,11 +30,12 @@ export function updateCamera(rig, state, dt, mode = 'chase') {
   const up = LOCAL_UP.clone().applyQuaternion(state.quaternion);
 
   if (mode === 'cockpit') {
-    desiredPosition.set(0, AIRCRAFT.eyeHeight, -AIRCRAFT.eyeForward)
+    desiredPosition.set(CAMERA.cockpitEyeSide, AIRCRAFT.eyeHeight, -AIRCRAFT.eyeForward)
       .applyQuaternion(state.quaternion).add(state.position);
     camera.position.copy(desiredPosition);
     camera.up.copy(up).normalize();
-    desiredLook.copy(forward).add(camera.position);
+    desiredLook.copy(forward).multiplyScalar(CAMERA.cockpitLookAhead)
+      .addScaledVector(up, -CAMERA.cockpitLookDown).add(camera.position);
     camera.lookAt(desiredLook);
     camera.fov = CAMERA.cockpitFov;
     camera.updateProjectionMatrix();
