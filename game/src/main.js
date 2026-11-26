@@ -1,50 +1,197 @@
-// Boot and the one loop: input is read every frame, the world advances in fixed 1/60 s steps
-// (several in a slow frame, none in a fast one), and the renderer paints what is there. The game
-// moves between four screens: title, play, paused and game over.
-//
-// ?seed=N fixes the falling pattern. ?shot=start|play|end (with &seed=N) stages that scene
-// instead of running the loop, paints it twice and sets window.__shotReady for a screenshot.
-import { BEST_KEY, LIVES, STEP } from './config.js';
-import { createRandom } from './random.js';
-import { createWorld, EVENT_HIT, EVENT_OVER } from './world.js';
-import { ACTION_CONFIRM, ACTION_PAUSE, createInput } from './input.js';
-import { createRenderer, SCREEN_OVER, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
+// Boot, rendering and screen flow. One requestAnimationFrame loop drives a fixed 1/60 s simulation;
+// the two canvases share a resize but only the WebGL canvas owns the 3D scene.
+import * as THREE from 'three';
+import { MAX_FRAME, STEP } from './config.js';
+import { createInput, ACTION_CAMERA, ACTION_CONFIRM, ACTION_GEAR, ACTION_MUTE, ACTION_PAUSE, ACTION_RESTART } from './input.js';
+import { createWorld } from './world.js';
+import { createTerrain, sampleTerrainHeight } from './terrain.js';
+import { createSky } from './sky.js';
+import { createAirfield, createLighthouse } from './landmarks.js';
+import { createRings, pickActiveRing, updateRings } from './rings.js';
+import { createAircraft, updateAircraft } from './aircraft.js';
+import { createCameraRig, updateCamera } from './camera.js';
+import { drawHud } from './hud.js';
+import { drawScreen } from './screens.js';
 import { stageShot } from './shots.js';
 
-/** The longest frame the loop catches up on; a longer stall (a hidden tab) is dropped, not replayed. */
-const MAX_FRAME = 0.25;
-
 const params = new URLSearchParams(window.location.search);
-const shot = params.get('shot');
-const seedParam = Number.parseInt(params.get('seed') ?? '', 10);
-const seed = Number.isInteger(seedParam) ? seedParam : Math.floor(Math.random() * 4294967296);
-
-const canvas = document.getElementById('game');
+const shotName = params.get('shot');
+const parsedSeed = Number.parseInt(params.get('seed') ?? '', 10);
+const seed = Number.isInteger(parsedSeed) ? parsedSeed : 1;
+const sceneCanvas = document.getElementById('scene');
+const hudCanvas = document.getElementById('hud');
 const status = document.getElementById('status');
-const world = createWorld(createRandom(seed));
-const renderer = createRenderer(canvas);
+const hudContext = hudCanvas.getContext('2d');
 
-function readBest() {
-  try {
-    return Number.parseInt(window.localStorage.getItem(BEST_KEY) ?? '0', 10) || 0;
-  } catch {
-    return 0;
+let firstError = null;
+window.addEventListener('error', (event) => {
+  if (!firstError) firstError = event.message || String(event.error || 'Unknown error');
+});
+window.addEventListener('unhandledrejection', (event) => {
+  if (!firstError) firstError = String(event.reason?.message || event.reason || 'Unhandled rejection');
+});
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: sceneCanvas, antialias: true, alpha: false, powerPreference: 'high-performance',
+});
+renderer.shadowMap.enabled = false;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;
+renderer.setClearColor('#7FB2D8', 1);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.15, 22000);
+const cameraRig = createCameraRig(camera);
+const world = createWorld(seed);
+const terrain = createTerrain(scene);
+const sky = createSky(scene, seed);
+const sunGlow = scene.getObjectByName('Sun glow');
+const aircraft = createAircraft(scene);
+const airfield = createAirfield(scene);
+const lighthouse = createLighthouse(scene);
+let rings = createRings(scene, world.mission);
+
+const hemisphere = new THREE.HemisphereLight('#D8ECF2', '#6D6247', 1.75);
+scene.add(hemisphere);
+const sunlight = new THREE.DirectionalLight('#FFF0CF', 2.35);
+scene.add(sunlight);
+
+function rebuildRings() {
+  if (rings?.group) {
+    scene.remove(rings.group);
+    const materials = new Set();
+    rings.group.traverse((object) => {
+      if (object.material) materials.add(object.material);
+    });
+    for (const material of materials) material.dispose();
+    if (rings[0]?.torus.geometry) rings[0].torus.geometry.dispose();
+    rings.haloMap?.dispose();
+  }
+  rings = createRings(scene, world.mission);
+  scene.add(rings.group);
+  pickActiveRing(rings, world.mission.activeRing);
+}
+
+function scenicReset() {
+  const x = -1750;
+  const z = -1450;
+  world.reset([x, sampleTerrainHeight(x, z) + 340, z], 87, 78);
+  world.state.throttle = 0.67;
+}
+scenicReset();
+
+let screen = 'TITLE';
+let cameraMode = 'chase';
+let fps = 60;
+let lastFrameTime = performance.now();
+let accumulator = 0;
+let audioContext = null;
+let announcedScreen = '';
+
+function announce(message) {
+  if (status) status.textContent = message;
+}
+
+function setScreen(next) {
+  screen = next;
+  if (screen !== announcedScreen) {
+    announcedScreen = screen;
+    if (screen === 'TITLE') announce('WINDWARD Coast Patrol. Press Space to begin.');
+    else if (screen === 'MENU') announce('Mission select. Use arrow keys and press Space.');
+    else if (screen === 'FLYING') announce('Flying. W and S pitch, A and D roll, Q and E rudder.');
+    else if (screen === 'PAUSED') announce('Paused. Press P or Escape to resume.');
+    else if (screen === 'DEBRIEF') announce(world.state.crashed ? 'Wrecked. Press R to fly again.' : 'Sortie ended.');
   }
 }
 
-function saveBest(value) {
+function unlockAudio() {
   try {
-    window.localStorage.setItem(BEST_KEY, String(value));
+    if (!audioContext) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioContextClass) audioContext = new AudioContextClass();
+    }
+    if (audioContext?.state === 'suspended') audioContext.resume().catch(() => {});
   } catch {
-    // Storage can be off (private windows): the best score then lasts this visit only.
+    audioContext = null;
   }
+}
+window.addEventListener('keydown', unlockAudio, { once: true });
+sceneCanvas.addEventListener('pointerdown', unlockAudio, { once: true });
+
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const width = Math.max(1, window.innerWidth);
+  const height = Math.max(1, window.innerHeight);
+  // The WebGL buffer is capped at native resolution; the HUD may use a sharper DPR.
+  renderer.setPixelRatio(Math.min(dpr, 1));
+  renderer.setSize(width, height, false);
+  hudCanvas.width = Math.round(width * dpr);
+  hudCanvas.height = Math.round(height * dpr);
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+function renderFrame(dt) {
+  updateAircraft(aircraft, world.state, dt);
+  airfield.update(world.clock);
+  lighthouse.update(world.clock);
+  updateRings(rings, world.mission.activeRing, world.clock);
+  sky.update(dt);
+  terrain.update(world.clock);
+  updateCamera(cameraRig, world.state, dt, cameraMode);
+  aircraft.canopy.visible = cameraMode !== 'cockpit';
+  aircraft.canopyFrame.visible = cameraMode !== 'cockpit';
+  sky.dome.position.copy(camera.position);
+  sky.sun.position.copy(camera.position).addScaledVector(sky.sunDirection, 8200);
+  if (sunGlow) sunGlow.position.copy(camera.position).addScaledVector(sky.sunDirection, 8100);
+  sunlight.position.copy(camera.position).addScaledVector(sky.sunDirection, 1800);
+  sunlight.target.position.copy(world.state.position);
+  sunlight.target.updateMatrixWorld();
+  renderer.render(scene, camera);
+
+  if (screen === 'FLYING' || screen === 'PAUSED') {
+    drawHud(hudContext, world.state, world, hudCanvas.width, hudCanvas.height, cameraMode, rings, camera);
+    if (screen === 'PAUSED') drawScreen(hudContext, 'PAUSED', world, hudCanvas.width, hudCanvas.height);
+  } else {
+    drawScreen(hudContext, screen, world, hudCanvas.width, hudCanvas.height);
+  }
+}
+
+function startMission(index = world.menuIndex) {
+  world.startMission(index);
+  rebuildRings();
+  cameraMode = 'chase';
+  cameraRig.initialized = false;
+  accumulator = 0;
+  setScreen('FLYING');
+}
+
+function startFreeFlight() {
+  startMission(world.menuIndex);
 }
 
 function runShot(name) {
-  const scene = stageShot(name, world);
+  const staged = stageShot(name, world);
+  rebuildRings();
+  if (staged.ringIndex >= 0) pickActiveRing(rings, staged.ringIndex);
+  screen = staged.screen;
+  cameraMode = staged.cameraMode;
+  cameraRig.initialized = false;
+  // Compile shaders before the two measured paints so startup is not mistaken for frame rate.
+  renderFrame(STEP);
+  let previous = performance.now();
   let painted = 0;
   function paint() {
-    renderer.draw(world.state, scene.screen, scene.best);
+    const now = performance.now();
+    const dt = Math.max(STEP, Math.min(MAX_FRAME, (now - previous) / 1000));
+    previous = now;
+    const renderStart = performance.now();
+    renderFrame(STEP);
+    const renderMilliseconds = Math.max(0.1, performance.now() - renderStart);
+    // Headless browsers can throttle rAF; this records the render work itself.
+    fps = Math.min(144, 1000 / renderMilliseconds);
     painted += 1;
     if (painted < 2) requestAnimationFrame(paint);
     else window.__shotReady = true;
@@ -53,82 +200,158 @@ function runShot(name) {
 }
 
 function runGame() {
-  const input = createInput(canvas);
-  let screen = SCREEN_TITLE;
-  let best = readBest();
-  let accumulator = 0;
-  let last = performance.now();
+  const input = createInput(sceneCanvas);
+  world.menuIndex = 0;
+  let previousLeft = false;
+  let previousRight = false;
+  let previousUp = false;
+  let previousDown = false;
 
-  // Screen readers (and anyone watching the page's text) hear the screen changes and each hit.
-  function announce(message) {
-    status.textContent = message;
-  }
-
-  function startGame() {
-    world.reset();
-    accumulator = 0;
-    screen = SCREEN_PLAY;
-    announce(`Playing. ${LIVES} lives.`);
-  }
-
-  function endGame() {
-    screen = SCREEN_OVER;
-    if (world.state.score > best) {
-      best = world.state.score;
-      saveBest(best);
-    }
-    announce(`Game over. Score ${world.state.score}. Best ${best}.`);
+  function menuSelection() {
+    const left = input.keys.has('ArrowLeft');
+    const right = input.keys.has('ArrowRight');
+    const up = input.keys.has('ArrowUp');
+    const down = input.keys.has('ArrowDown');
+    const direction = (right && !previousRight ? 1 : 0) - (left && !previousLeft ? 1 : 0)
+      + (down && !previousDown ? 1 : 0) - (up && !previousUp ? 1 : 0);
+    if (direction !== 0) world.menuIndex = (world.menuIndex + direction + 3) % 3;
+    previousLeft = left;
+    previousRight = right;
+    previousUp = up;
+    previousDown = down;
   }
 
   function handleActions() {
     const actions = input.takeActions();
-    if (actions & ACTION_CONFIRM && (screen === SCREEN_TITLE || screen === SCREEN_OVER)) startGame();
-    else if (actions & ACTION_PAUSE && screen === SCREEN_PLAY) {
-      screen = SCREEN_PAUSED;
-      announce('Paused.');
-    } else if (actions & (ACTION_PAUSE | ACTION_CONFIRM) && screen === SCREEN_PAUSED) {
-      screen = SCREEN_PLAY;
-      announce('Playing.');
+    if (screen === 'TITLE') {
+      if (actions & ACTION_CONFIRM) setScreen('MENU');
+    } else if (screen === 'MENU') {
+      if (actions & ACTION_CONFIRM) startFreeFlight();
+      else if (actions & ACTION_PAUSE) setScreen('TITLE');
+    } else if (screen === 'FLYING') {
+      if (actions & ACTION_PAUSE) setScreen('PAUSED');
+      if (actions & ACTION_GEAR) world.state.gearDown = !world.state.gearDown;
+      if (actions & ACTION_CAMERA) {
+        cameraMode = cameraMode === 'chase' ? 'cockpit' : 'chase';
+        cameraRig.initialized = false;
+      }
+      if (actions & ACTION_RESTART) startFreeFlight();
+      void ACTION_MUTE;
+    } else if (screen === 'PAUSED') {
+      if (actions & (ACTION_PAUSE | ACTION_CONFIRM)) setScreen('FLYING');
+      else if (actions & ACTION_RESTART) startFreeFlight();
+    } else if (screen === 'DEBRIEF') {
+      if (actions & ACTION_RESTART || actions & ACTION_CONFIRM) startFreeFlight();
+      else if (actions & ACTION_PAUSE) setScreen('MENU');
     }
-  }
-
-  function step() {
-    if (screen === SCREEN_TITLE) {
-      world.step(STEP, 0, true);
-      return;
-    }
-    const events = world.step(STEP, input.direction(), false);
-    if (events & EVENT_OVER) endGame();
-    else if (events & EVENT_HIT) announce(world.state.lives === 1 ? 'Hit. 1 life left.' : `Hit. ${world.state.lives} lives left.`);
   }
 
   function frame(now) {
     requestAnimationFrame(frame);
-    accumulator += Math.min((now - last) / 1000, MAX_FRAME);
-    last = now;
+    const dt = Math.max(0.0001, Math.min(MAX_FRAME, (now - lastFrameTime) / 1000));
+    lastFrameTime = now;
+    fps = fps * 0.92 + Math.min(144, 1 / dt) * 0.08;
+    input.update(dt);
     handleActions();
-    if (screen === SCREEN_TITLE || screen === SCREEN_PLAY) {
-      while (accumulator >= STEP && (screen === SCREEN_TITLE || screen === SCREEN_PLAY)) {
-        step();
+    if (screen === 'MENU') menuSelection();
+
+    if (screen === 'FLYING') {
+      accumulator += dt;
+      while (accumulator >= STEP && screen === 'FLYING') {
+        world.step(STEP, input);
         accumulator -= STEP;
+        if (world.finished) setScreen('DEBRIEF');
       }
     } else {
       accumulator = 0;
     }
-    renderer.draw(world.state, screen, best);
+    const renderStart = performance.now();
+    renderFrame(dt);
+    const renderMilliseconds = Math.max(0.1, performance.now() - renderStart);
+    fps = fps * 0.7 + Math.min(144, 1000 / renderMilliseconds) * 0.3;
   }
 
-  // Leaving the tab pauses a running game rather than letting blocks fall unseen.
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden && screen === SCREEN_PLAY) {
-      screen = SCREEN_PAUSED;
-      announce('Paused.');
-    }
+    if (document.hidden && screen === 'FLYING') setScreen('PAUSED');
+    lastFrameTime = performance.now();
+    accumulator = 0;
   });
 
-  announce('Block Dodger. Press Space or click to start.');
+  window.advanceTime = (milliseconds) => {
+    const steps = Math.max(1, Math.round(milliseconds / (STEP * 1000)));
+    for (let index = 0; index < steps && screen === 'FLYING'; index += 1) {
+      world.step(STEP, input);
+      if (world.finished) setScreen('DEBRIEF');
+    }
+    renderFrame(STEP);
+  };
+  window.render_game_to_text = () => JSON.stringify({
+    mode: screen, mission: world.mission.name, speed: Number(world.state.speed.toFixed(2)),
+    altitude: Number(world.state.position.y.toFixed(2)), heading: Number(world.state.heading.toFixed(2)),
+    fuel: Number(world.state.fuel.toFixed(2)), damage: Number(world.state.damage.toFixed(2)),
+    gearDown: world.state.gearDown, score: world.score, rings: world.mission.ringsPassed,
+    activeRing: world.mission.activeRing + 1, timeLeft: Number(world.mission.timeLeft.toFixed(1)),
+    warning: world.mission.warning, finished: world.finished, grade: world.grade,
+  });
+
+  setScreen('TITLE');
   requestAnimationFrame(frame);
 }
 
-if (shot) runShot(shot);
+const diagScreen = new THREE.Vector3();
+window.__diag = () => {
+  const active = rings[world.mission.activeRing];
+  let ringScreen = null;
+  if (active) {
+    diagScreen.set(active.position.x, active.position.y, active.position.z);
+    const toRing = diagScreen.clone().sub(world.state.position);
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(world.state.quaternion);
+    const inFront = toRing.dot(forward) > 0;
+    diagScreen.project(camera);
+    const projectedInFront = diagScreen.z >= -1 && diagScreen.z <= 1;
+    const distance = toRing.length();
+    const radiusPx = distance > 0 ? (active.radius / distance) * (camera.fov / 2)
+      / Math.tan((camera.fov * Math.PI / 180) / 2) * (window.innerHeight / 2) : 0;
+    ringScreen = {
+      x: (diagScreen.x * 0.5 + 0.5) * window.innerWidth,
+      y: (-diagScreen.y * 0.5 + 0.5) * window.innerHeight,
+      inFront: inFront && projectedInFront,
+      radiusPx: Math.round(radiusPx),
+    };
+  }
+  return {
+    fps: Number(fps.toFixed(1)),
+    drawCalls: renderer.info.render.calls,
+    triangles: renderer.info.render.triangles,
+    mode: screen,
+    speed: Number(world.state.speed.toFixed(2)),
+    altitude: Number(world.state.position.y.toFixed(2)),
+    heading: Number(world.state.heading.toFixed(2)),
+    rings: Math.max(0, world.mission.ringsPassed),
+    score: world.score,
+    ringScreen,
+    error: firstError,
+  };
+};
+window.__shotReady = false;
+
+async function waitForFonts() {
+  try {
+    if (document.fonts) {
+      await Promise.all([
+        document.fonts.load('600 32px "Barlow Condensed"'),
+        document.fonts.load('700 32px "Barlow Condensed"'),
+        document.fonts.load('400 16px Inter'),
+        document.fonts.load('500 16px Inter'),
+      ]);
+      await document.fonts.ready;
+    }
+  } catch {
+    // System fallbacks still produce readable text if a local font cannot be decoded.
+  }
+}
+
+await waitForFonts();
+
+if (shotName) runShot(shotName);
 else runGame();
