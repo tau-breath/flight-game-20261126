@@ -447,11 +447,8 @@ window.__diag = () => {
     })),
     tracers: {
       active: combat.playerBullets.filter((bullet) => bullet.active).length,
-      draw: combat.playerTracers.geometry.drawRange.count,
-      sample: combat.playerBullets.filter((b) => b.active).slice(0, 2)
-        .map((b) => [Math.round(b.x), Math.round(b.y), Math.round(b.z)]),
-      visible: combat.playerTracers.lines.visible,
-      inScene: combat.playerTracers.lines.parent === scene,
+      drawn: combat.playerTracers.mesh.count,
+      enemyDrawn: combat.enemyTracers.mesh.count,
     },
     lock: combat.lockTarget?.id ?? null,
     lockDistance: combat.lockTarget
