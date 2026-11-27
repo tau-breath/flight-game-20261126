@@ -76,10 +76,10 @@ function createRunway(group) {
 
 function createApproachLights(group, glowMap) {
   const lightMaterial = new THREE.MeshStandardMaterial({
-    color: '#FFD58A', emissive: '#FF9E32', emissiveIntensity: 2.2, roughness: 0.4,
+    color: '#FFD58A', emissive: '#FF9E32', emissiveIntensity: 1.6, roughness: 0.4,
   });
   const glowMaterial = new THREE.SpriteMaterial({
-    map: glowMap, color: '#FFC46B', transparent: true, opacity: 0.72,
+    map: glowMap, color: '#FFC46B', transparent: true, opacity: 0.4,
     blending: THREE.AdditiveBlending, depthWrite: false,
   });
   const lights = new THREE.InstancedMesh(new THREE.SphereGeometry(0.5, 8, 6), lightMaterial, 14);
@@ -91,7 +91,7 @@ function createApproachLights(group, glowMap) {
     lights.setMatrixAt(index, matrix);
     const glow = new THREE.Sprite(glowMaterial);
     glow.position.set(x, y, AIRFIELD.z);
-    glow.scale.set(5.5, 5.5, 1);
+    glow.scale.set(2.2, 2.2, 1);
     group.add(glow);
   }
   lights.instanceMatrix.needsUpdate = true;

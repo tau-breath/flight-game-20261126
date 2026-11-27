@@ -46,7 +46,7 @@ export const AIRFIELD = Object.freeze({
 });
 
 export const TERRAIN = Object.freeze({
-  size: 12000, segments: 144, seed: 1729, octaves: 4, frequency: 0.00031,
+  size: 12000, segments: 200, seed: 1729, octaves: 4, frequency: 0.00031,
   maxHeight: 780, airfieldHeight: AIRFIELD.elevation, plateauRadiusX: 980, plateauRadiusZ: 540,
   heightStep: 8, coastFoamSamples: 144,
 });

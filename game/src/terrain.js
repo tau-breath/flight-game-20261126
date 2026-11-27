@@ -126,6 +126,11 @@ function terrainColour(x, z, height, slope, variation) {
   const sunSide = clamp(0.5 + (variation - 0.5) * 0.7 + (meadow - 0.5) * 0.3, 0, 1);
   colour.lerp(SUN_TINT, sunSide * 0.07);
   colour.multiplyScalar(0.93 + (variation - 0.5) * 0.1);
+  const groundTexture = fbm(x * 0.004, z * 0.004, 4, 4411);
+  const fineTexture = fbm(x * 0.02, z * 0.02, 3, 9029);
+  const textureTint = 1 + (groundTexture - 0.5) * 0.18;
+  const scrubDarkening = 1 - (1 - smoothstep(0.2, 0.5, fineTexture)) * 0.06;
+  colour.multiplyScalar(textureTint * scrubDarkening);
   return colour;
 }
 
