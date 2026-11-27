@@ -47,9 +47,9 @@ function createTracerField(scene, count, colour) {
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
   geometry.setDrawRange(0, 0);
+  // Normal blending, not additive: a tracer has to read against a pale sky as well as dark water.
   const lines = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({
-    vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false,
-    blending: THREE.AdditiveBlending,
+    vertexColors: true, transparent: true, opacity: 1, depthWrite: false,
   }));
   lines.frustumCulled = false;
   lines.renderOrder = 6;
@@ -115,8 +115,8 @@ export function glowTexture() {
 }
 
 export function createCombat(scene) {
-  const playerTracers = createTracerField(scene, PLAYER_BULLETS, '#FFE9A6');
-  const enemyTracers = createTracerField(scene, ENEMY_BULLETS, '#FF8A4A');
+  const playerTracers = createTracerField(scene, PLAYER_BULLETS, '#FF9E1F');
+  const enemyTracers = createTracerField(scene, ENEMY_BULLETS, '#FF3B2E');
   const playerBullets = [];
   const enemyBullets = [];
   for (let index = 0; index < PLAYER_BULLETS; index += 1) {

@@ -35,11 +35,12 @@ function buildFighter(ace) {
   const group = new THREE.Group();
   const hide = standard(FORCES.raiderColour);
   const trim = standard(FORCES.raiderTrim);
-  const accent = standard(ace ? '#C2543A' : '#8C5A44');
+  const accent = standard(ace ? '#E85E38' : '#D08A5A');
   const glass = standard(FORCES.raiderGlass, {
     transparent: true, opacity: 0.42, roughness: 0.2, depthWrite: false,
   });
   const dark = standard('#22282A');
+  const creamBand = standard('#E8DCC0');
 
   const fuselage = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.15, 7.2, 12), hide);
   fuselage.rotation.x = -Math.PI / 2;
@@ -66,13 +67,14 @@ function buildFighter(ace) {
   // Low wing with a hard-edged diamond insignia, deliberately unlike the Kestrel's gull roundel.
   box(group, 9.2, 0.16, 1.5, hide, 0, -0.16, -0.1);
   for (const side of [-1, 1]) {
-    box(group, 0.7, 0.18, 1.52, trim, side * 4.5, -0.16, -0.1);
-    const diamond = box(group, 0.9, 0.03, 0.9, accent, side * 2.6, -0.05, -0.1);
+    box(group, 1.1, 0.18, 1.52, accent, side * 4.35, -0.16, -0.1);
+    const diamond = box(group, 0.9, 0.03, 0.9, creamBand, side * 2.4, -0.05, -0.1);
     diamond.rotation.y = Math.PI / 4;
   }
 
   box(group, 0.09, 1.1, 0.9, hide, 0, 0.62, 3.1);
   box(group, 2.9, 0.11, 0.7, hide, 0, 0.28, 3.3);
+  box(group, 0.1, 0.22, 0.94, creamBand, 0, 0.06, 3.1);
 
   const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 7), glass);
   canopy.scale.set(1, 0.7, 1.7);

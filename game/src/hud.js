@@ -145,14 +145,19 @@ export function drawLockBox(ctx, state, target, combat, camera = null) {
     ctx.arc(point.x, point.y, size * (1.5 - combat.lockProgress * 0.5), 0, Math.PI * 2);
     ctx.stroke();
   }
-  const label = target.kind === 'fighter' ? (target.ace ? 'RAIDER LEAD' : 'RAIDER') : target.kind === 'gunboat' ? 'GUNBOAT' : 'FLAK';
-  text(ctx, label, point.x, point.y - size - 22, 11, colour, 'center');
-  text(ctx, `${distance} M`, point.x, point.y + size + 18, 12, colour, 'center');
+  const label = target.kind === 'fighter' ? (target.ace ? 'RAIDER LEAD' : 'RAIDER') : target.kind === 'gunboat' ? 'GUNBOAT' : 'FLAK BATTERY';
+  const plateX = point.x - 66;
+  ctx.fillStyle = 'rgba(10,30,36,0.72)';
+  ctx.fillRect(plateX, point.y - size - 34, 132, 18);
+  text(ctx, label, point.x, point.y - size - 25, 11, colour, 'center');
+  ctx.fillStyle = 'rgba(10,30,36,0.72)';
+  ctx.fillRect(plateX, point.y + size + 8, 132, 34);
+  text(ctx, `${distance} M`, point.x, point.y + size + 19, 12, HUD.cream, 'center');
   if (locked) {
     const closing = Math.round(((state.velocity.x - 0) * (target.x - state.position.x)
       + (state.velocity.y - 0) * (target.y - state.position.y)
       + (state.velocity.z - 0) * (target.z - state.position.z)) / Math.max(1, distance));
-    trackedText(ctx, `LOCK · CLOSING ${Math.max(0, closing)} M/S`, point.x, point.y + size + 34, 9, HUD.red, 1.2, 'center');
+    trackedText(ctx, `LOCK · CLOSING ${Math.max(0, closing)} M/S`, point.x, point.y + size + 34, 8, HUD.red, 1.0, 'center');
   }
 }
 

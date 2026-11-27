@@ -91,7 +91,7 @@ export const COMBAT = Object.freeze({
 export const FORCES = Object.freeze({
   fighterRadius: 6.4, fighterHealth: 34, fighterSpeed: 96, fighterTurn: 1.5,
   gunboatRadius: 26, gunboatHealth: 150, flakHealth: 90,
-  raiderColour: '#7E4B3A', raiderTrim: '#2F3B3F', raiderGlass: '#B9D8DB',
+  raiderColour: '#B0603C', raiderTrim: '#39464B', raiderGlass: '#CFE6E8',
 });
 
 export const MISSIONS = Object.freeze([
