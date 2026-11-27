@@ -105,8 +105,8 @@ function stageStrike(world, systems) {
   const wing = systems.forces.byId.get('raider-2');
   hold(lead, 0.9);
   hold(wing, 0.35);
-  if (lead) placeCrossing(lead, world.state, 74, 8.5, 1.6, 126, -44);
-  if (wing) placeCrossing(wing, world.state, 158, -15, 4.0, -138, 32);
+  if (lead) placeCrossing(lead, world.state, 46, 11, 3.4, 126, -44);
+  if (wing) placeCrossing(wing, world.state, 148, -16, 4.6, -138, 32);
   advance(systems, 0.05, stick(true, 0.02, 0.02));
   forceLock(systems.combat, lead);
   return { screen: 'FLYING', cameraMode: 'chase', ringIndex: 2, mission };
@@ -155,7 +155,7 @@ function stageMissile(world, systems) {
   if (gunboat) gunboat.hp = 26;
   forceLock(systems.combat, gunboat);
   fireRocket(systems.combat, world);
-  advance(systems, 1.5, stick(false, 0.01, -0.02));
+  advance(systems, 1.95, stick(false, 0.01, -0.02));
   advance(systems, 0.16, stick(false, 0.01, -0.02));
   forceLock(systems.combat, gunboat);
   return { screen: 'FLYING', cameraMode: 'chase', ringIndex: 2, mission };
