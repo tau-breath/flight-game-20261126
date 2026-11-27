@@ -36,7 +36,8 @@ function createTracerField(scene, count, colour) {
   // face the eye, so a tracer reads at any angle instead of collapsing to a dot when it flies away.
   const geometry = new THREE.PlaneGeometry(1, 1);
   const material = new THREE.MeshBasicMaterial({
-    color: colour, transparent: true, opacity: 0.92, depthWrite: false, side: THREE.DoubleSide,
+    color: colour, transparent: true, opacity: 0.95, depthWrite: false, side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
   });
   const mesh = new THREE.InstancedMesh(geometry, material, count);
   mesh.frustumCulled = false;
@@ -65,17 +66,20 @@ function writeTracers(field, bullets, length, eye, width) {
     field.toEye.set(eye.x - bullet.x, eye.y - bullet.y, eye.z - bullet.z);
     if (field.toEye.lengthSq() < 1e-6) field.toEye.set(0, 1, 0);
     field.toEye.normalize();
-    field.right.crossVectors(field.direction, field.toEye);
-    if (field.right.lengthSq() < 1e-6) field.right.set(0, 1, 0);
-    field.right.normalize();
-    field.up.crossVectors(field.right, field.direction).normalize();
-    field.basis.makeBasis(field.right, field.direction, field.up);
+    // The quad always faces the eye; its long axis follows the part of the flight path the eye can
+    // actually see. A round fired straight away therefore reads as a dash, not as a disappearing dot.
+    field.up.copy(field.direction).addScaledVector(field.toEye, -field.direction.dot(field.toEye));
+    if (field.up.lengthSq() < 0.02) {
+      field.up.set(0, 1, 0).addScaledVector(field.toEye, -field.toEye.y);
+      if (field.up.lengthSq() < 0.02) field.up.set(1, 0, 0).addScaledVector(field.toEye, -field.toEye.x);
+    }
+    field.up.normalize();
+    field.right.crossVectors(field.up, field.toEye).normalize();
+    field.basis.makeBasis(field.right, field.up, field.toEye);
     field.matrix.copy(field.basis);
     field.scale.set(width, length, 1);
     field.matrix.scale(field.scale);
-    field.matrix.setPosition(bullet.x - field.direction.x * length * 0.5,
-      bullet.y - field.direction.y * length * 0.5,
-      bullet.z - field.direction.z * length * 0.5);
+    field.matrix.setPosition(bullet.x, bullet.y, bullet.z);
     field.mesh.setMatrixAt(used, field.matrix);
     used += 1;
     if (used >= field.count) break;
@@ -443,8 +447,8 @@ export function stepCombat(combat, world, forces, input, dt) {
   stepBullets(combat, world, forces, dt);
   stepMissiles(combat, world, dt);
 
-  writeTracers(combat.playerTracers, combat.playerBullets, 15, state.position, 0.55);
-  writeTracers(combat.enemyTracers, combat.enemyBullets, 12, state.position, 0.5);
+  writeTracers(combat.playerTracers, combat.playerBullets, 7.5, state.position, 0.9);
+  writeTracers(combat.enemyTracers, combat.enemyBullets, 6, state.position, 0.8);
 }
 
 /** Fired from the flow when the player presses the rocket key. */
