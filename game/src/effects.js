@@ -205,6 +205,175 @@ function emitDamageSmoke(effects, state) {
   particle.sprite.material.opacity = 0;
 }
 
+function spawnMuzzle(effects, x, y, z, scale) {
+  const particle = takeParticle(effects.muzzle);
+  particle.age = 0;
+  particle.life = 0.075;
+  particle.size = 0.9 * scale;
+  particle.growth = 5.5;
+  particle.sprite.position.set(x, y, z);
+  particle.vx = 0; particle.vy = 0; particle.vz = 0;
+  particle.rise = 0; particle.drag = 0;
+  particle.opacity = 0.95;
+  particle.fadeIn = 0.001;
+  particle.stretchX = 1.4;
+  particle.stretchY = 1.4;
+  particle.sprite.material.rotation = nextRandom(effects) * Math.PI;
+  particle.sprite.scale.setScalar(particle.size);
+  particle.sprite.material.opacity = 0.95;
+}
+
+function spawnImpact(effects, x, y, z, scale) {
+  for (let index = 0; index < 4; index += 1) {
+    const particle = takeParticle(effects.sparks);
+    const angle = nextRandom(effects) * Math.PI * 2;
+    const speed = (5 + nextRandom(effects) * 9) * scale;
+    particle.age = 0;
+    particle.life = 0.26 + nextRandom(effects) * 0.2;
+    particle.size = 0.18 * scale;
+    particle.growth = -0.2;
+    particle.sprite.position.set(x, y, z);
+    particle.vx = Math.cos(angle) * speed;
+    particle.vy = Math.sin(angle) * speed;
+    particle.vz = (nextRandom(effects) - 0.5) * speed;
+    particle.rise = -4;
+    particle.drag = 1.4;
+    particle.opacity = 1;
+    particle.fadeIn = 0.01;
+    particle.stretchX = 0.5;
+    particle.stretchY = 1.6;
+    particle.sprite.material.rotation = angle;
+    particle.sprite.scale.set(particle.size * 0.5, particle.size * 1.6, 1);
+    particle.sprite.material.opacity = 1;
+  }
+}
+
+function spawnFlak(effects, x, y, z, scale) {
+  for (let index = 0; index < 3; index += 1) {
+    const particle = takeParticle(effects.flak);
+    particle.age = 0;
+    particle.life = 1.6 + nextRandom(effects) * 0.9;
+    particle.size = (2.4 + nextRandom(effects) * 1.8) * scale;
+    particle.growth = 2.6;
+    particle.sprite.position.set(
+      x + (nextRandom(effects) - 0.5) * 9 * scale,
+      y + (nextRandom(effects) - 0.5) * 9 * scale,
+      z + (nextRandom(effects) - 0.5) * 9 * scale,
+    );
+    particle.vx = (nextRandom(effects) - 0.5) * 3;
+    particle.vy = 1.2 + nextRandom(effects) * 2.4;
+    particle.vz = (nextRandom(effects) - 0.5) * 3;
+    particle.rise = 0.5;
+    particle.drag = 0.9;
+    particle.opacity = 0.62;
+    particle.fadeIn = 0.05;
+    particle.stretchX = 1;
+    particle.stretchY = 1;
+    particle.sprite.material.rotation = nextRandom(effects) * Math.PI;
+    particle.sprite.scale.setScalar(particle.size);
+    particle.sprite.material.opacity = 0.62;
+  }
+  const flash = takeParticle(effects.muzzle);
+  flash.age = 0;
+  flash.life = 0.09;
+  flash.size = 2.6 * scale;
+  flash.growth = 9;
+  flash.sprite.position.set(x, y, z);
+  flash.vx = 0; flash.vy = 0; flash.vz = 0;
+  flash.rise = 0; flash.drag = 0;
+  flash.opacity = 0.9;
+  flash.fadeIn = 0.001;
+  flash.stretchX = 1;
+  flash.stretchY = 1;
+  flash.sprite.scale.setScalar(flash.size);
+  flash.sprite.material.opacity = 0.9;
+}
+
+function spawnSplash(effects, x, z, scale) {
+  for (let index = 0; index < 3; index += 1) {
+    const particle = takeParticle(effects.splash);
+    particle.age = 0;
+    particle.life = 0.55 + nextRandom(effects) * 0.4;
+    particle.size = (1.6 + nextRandom(effects) * 1.6) * scale;
+    particle.growth = 3.4;
+    particle.sprite.position.set(x, 0.6, z);
+    particle.vx = (nextRandom(effects) - 0.5) * 5;
+    particle.vy = 6 + nextRandom(effects) * 7;
+    particle.vz = (nextRandom(effects) - 0.5) * 5;
+    particle.rise = -9;
+    particle.drag = 0.5;
+    particle.opacity = 0.72;
+    particle.fadeIn = 0.02;
+    particle.stretchX = 0.8;
+    particle.stretchY = 1.7;
+    particle.sprite.scale.set(particle.size * 0.8, particle.size * 1.7, 1);
+    particle.sprite.material.opacity = 0.72;
+  }
+}
+
+function spawnTrail(effects, x, y, z) {
+  const particle = takeParticle(effects.trail);
+  particle.age = 0;
+  particle.life = 0.9 + nextRandom(effects) * 0.5;
+  particle.size = 1.1;
+  particle.growth = 3.2;
+  particle.sprite.position.set(x, y, z);
+  particle.vx = (nextRandom(effects) - 0.5) * 1.6;
+  particle.vy = (nextRandom(effects) - 0.5) * 1.6;
+  particle.vz = (nextRandom(effects) - 0.5) * 1.6;
+  particle.rise = 0.6;
+  particle.drag = 1.5;
+  particle.opacity = 0.5;
+  particle.fadeIn = 0.02;
+  particle.stretchX = 1;
+  particle.stretchY = 1;
+  particle.sprite.material.rotation = nextRandom(effects) * Math.PI;
+  particle.sprite.scale.setScalar(particle.size);
+  particle.sprite.material.opacity = 0.5;
+}
+
+function spawnBlast(effects, x, y, z, scale) {
+  let blast = null;
+  for (const slot of effects.blasts) {
+    if (!slot.active) { blast = slot; break; }
+  }
+  if (blast) {
+    blast.active = true;
+    blast.age = 0;
+    blast.life = 0.95;
+    blast.size = 6 * scale;
+    blast.mesh.position.set(x, y, z);
+    blast.mesh.scale.setScalar(blast.size * 0.25);
+    blast.mesh.material.opacity = 1;
+    blast.mesh.visible = true;
+  }
+  for (let index = 0; index < 5; index += 1) {
+    const particle = takeParticle(effects.crashSmoke);
+    particle.age = 0;
+    particle.life = 2.4 + nextRandom(effects) * 2.2;
+    particle.size = (2.2 + nextRandom(effects) * 2.4) * scale;
+    particle.growth = 1.5;
+    particle.sprite.position.set(
+      x + (nextRandom(effects) - 0.5) * 7 * scale,
+      y + (nextRandom(effects) - 0.5) * 7 * scale,
+      z + (nextRandom(effects) - 0.5) * 7 * scale,
+    );
+    particle.vx = (nextRandom(effects) - 0.5) * 9 * scale;
+    particle.vy = 3 + nextRandom(effects) * 7 * scale;
+    particle.vz = (nextRandom(effects) - 0.5) * 9 * scale;
+    particle.rise = 0.9;
+    particle.drag = 0.5;
+    particle.opacity = 0.55;
+    particle.fadeIn = 0.04;
+    particle.stretchX = 1;
+    particle.stretchY = 1;
+    particle.sprite.material.rotation = nextRandom(effects) * Math.PI;
+    particle.sprite.scale.setScalar(particle.size);
+    particle.sprite.material.opacity = 0.55;
+  }
+  spawnImpact(effects, x, y, z, 1.6 * scale);
+}
+
 function updatePool(pool, dt) {
   let live = 0;
   for (let index = 0; index < pool.length; index += 1) {
@@ -245,6 +414,25 @@ export function createEffects(scene) {
   const dust = createPool(group, 10, '#B9B4A6', THREE.NormalBlending, map);
   const crashSmoke = createPool(group, 12, '#303B3D', THREE.NormalBlending, map);
   const damageSmoke = createPool(group, 14, '#566061', THREE.NormalBlending, map);
+  const muzzle = createPool(group, 12, '#FFE8A8', THREE.AdditiveBlending, map);
+  const flak = createPool(group, 26, '#4B4B46', THREE.NormalBlending, map);
+  const splash = createPool(group, 20, '#EAF3F2', THREE.NormalBlending, map);
+  const trail = createPool(group, 26, '#9AA0A0', THREE.NormalBlending, map);
+  const blasts = [];
+  for (let index = 0; index < 7; index += 1) {
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 12, 8),
+      new THREE.MeshBasicMaterial({
+        color: '#FFB055', transparent: true, opacity: 0, depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    );
+    mesh.visible = false;
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 5;
+    group.add(mesh);
+    blasts.push({ mesh, active: false, age: 0, life: 1, size: 6 });
+  }
   const fireball = new THREE.Mesh(
     new THREE.SphereGeometry(1, 12, 8),
     new THREE.MeshBasicMaterial({
@@ -259,6 +447,7 @@ export function createEffects(scene) {
 
   return {
     group, leftVapour, rightVapour, sparks, dust, crashSmoke, damageSmoke, fireball,
+    muzzle, flak, splash, trail, blasts,
     map, live: 0, initialized: false, randomState: 0x6d2b79f5,
     lastRings: 0, dustActive: false, lastCrashed: false,
     damageSmokeTimer: 0, fireballAge: 0,
@@ -317,6 +506,26 @@ export function updateEffects(effects, world, dt) {
   live += updatePool(effects.dust, dt);
   live += updatePool(effects.crashSmoke, dt);
   live += updatePool(effects.damageSmoke, dt);
+  live += updatePool(effects.muzzle, dt);
+  live += updatePool(effects.flak, dt);
+  live += updatePool(effects.splash, dt);
+  live += updatePool(effects.trail, dt);
+
+  for (const blast of effects.blasts) {
+    if (!blast.active) continue;
+    blast.age += dt;
+    const progress = blast.age / blast.life;
+    if (progress >= 1) {
+      blast.active = false;
+      blast.mesh.visible = false;
+      blast.mesh.material.opacity = 0;
+      continue;
+    }
+    blast.mesh.scale.setScalar(blast.size * (0.3 + progress * 1.3));
+    blast.mesh.material.opacity = (1 - progress) * 0.92;
+    blast.mesh.position.y += dt * 3.2;
+    live += 1;
+  }
 
   if (effects.fireball.visible) {
     effects.fireballAge += dt;
@@ -336,7 +545,7 @@ export function updateEffects(effects, world, dt) {
 
 export function resetEffects(effects) {
   const pools = [effects.leftVapour, effects.rightVapour, effects.sparks, effects.dust,
-    effects.crashSmoke, effects.damageSmoke];
+    effects.crashSmoke, effects.damageSmoke, effects.muzzle, effects.flak, effects.splash, effects.trail];
   for (let poolIndex = 0; poolIndex < pools.length; poolIndex += 1) {
     const pool = pools[poolIndex];
     pool.cursor = 0;
@@ -344,6 +553,11 @@ export function resetEffects(effects) {
   }
   effects.fireball.visible = false;
   effects.fireball.material.opacity = 0;
+  for (const blast of effects.blasts) {
+    blast.active = false;
+    blast.mesh.visible = false;
+    blast.mesh.material.opacity = 0;
+  }
   effects.live = 0;
   effects.initialized = false;
   effects.lastRings = 0;
@@ -352,4 +566,24 @@ export function resetEffects(effects) {
   effects.damageSmokeTimer = 0;
   effects.fireballAge = 0;
   effects.randomState = 0x6d2b79f5;
+}
+
+/** One dispatcher for the events the weapons and the AI raise, so the renderer stays short. */
+export function emitEffect(effects, event) {
+  const scale = event.scale || 1;
+  switch (event.type) {
+    case 'gun': spawnMuzzle(effects, event.x, event.y, event.z, scale * 1.1); break;
+    case 'enemy-gun': spawnMuzzle(effects, event.x, event.y, event.z, scale); break;
+    case 'impact': spawnImpact(effects, event.x, event.y, event.z, scale); break;
+    case 'explosion': spawnBlast(effects, event.x, event.y, event.z, scale); break;
+    case 'flak': spawnFlak(effects, event.x, event.y, event.z, scale); break;
+    case 'flak-gun': spawnMuzzle(effects, event.x, event.y, event.z, scale * 1.4); break;
+    case 'flak-hit': spawnImpact(effects, event.x, event.y, event.z, scale * 2); break;
+    case 'splash': spawnSplash(effects, event.x, event.z, scale); break;
+    case 'trail': spawnTrail(effects, event.x, event.y, event.z); break;
+    case 'launch': spawnMuzzle(effects, event.x, event.y, event.z, 2.2); break;
+    case 'flare': spawnFlak(effects, event.x, event.y - 3, event.z, 0.7); break;
+    case 'player-hit': spawnImpact(effects, event.x, event.y, event.z, 1.4); break;
+    default: break;
+  }
 }

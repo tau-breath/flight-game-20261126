@@ -72,7 +72,59 @@ export const RINGS = Object.freeze({
   radius: 26, tube: 3.0, color: '#F0A03C', passedColor: '#6E5A3C',
 });
 
+// Combat tuning. The Kestrel carries two cowl guns, four rockets and three flare pods; the
+// raiders, the flak barge and the gunboat answer with their own fire.
+export const COMBAT = Object.freeze({
+  gunRate: 9.5, gunSpeed: 780, gunSpread: 0.0055, gunDamage: 7, gunLife: 1.5, gunAmmo: 1150,
+  gunConverge: 420, muzzleLeft: -1.15, muzzleRight: 1.15, muzzleUp: 0.18, muzzleForward: -3.2,
+  lockCone: 0.30, lockTime: 1.1, lockRange: 1700, lockMinRange: 90,
+  missileSpeed: 320, missileAccel: 240, missileTurn: 3.2, missileLife: 7.5,
+  missileDamage: 78, missileCount: 4, missileFuse: 12,
+  flareCount: 3, flareTime: 3.4, evadeTime: 1.05, evadeTurn: 7.4, evadeGuard: 0.25,
+  enemyRate: 5.2, enemySpeed: 620, enemyDamage: 4.2, enemySpread: 0.019, enemyRange: 820,
+  flakDamage: 8, flakRadius: 24, flakRate: 1.15, flakRange: 980,
+  hull: 100, hitFlash: 0.24,
+  scoreKillFighter: 320, scoreKillGunboat: 520, scoreKillFlak: 380,
+  scoreHit: 12, scoreGate: 120, scoreSoftLanding: 300,
+});
+
+export const FORCES = Object.freeze({
+  fighterRadius: 6.4, fighterHealth: 34, fighterSpeed: 96, fighterTurn: 1.5,
+  gunboatRadius: 26, gunboatHealth: 150, flakHealth: 90,
+  raiderColour: '#7E4B3A', raiderTrim: '#2F3B3F', raiderGlass: '#B9D8DB',
+});
+
 export const MISSIONS = Object.freeze([
+  // The strike sortie: gates in, raiders to splash, a flotilla to silence, one gate out.
+  Object.freeze({
+    id: 'strike', kind: 'strike', name: 'STRIKE RUN', goal: 'Intercept, then silence the flotilla',
+    timeLimit: 250, time: 250,
+    route: Object.freeze([
+      Object.freeze({ x: 4900, y: 178, z: -1480, heading: 142 }),
+      Object.freeze({ x: 5380, y: 162, z: -860, heading: 140 }),
+      Object.freeze({ x: 5820, y: 150, z: -250, heading: 146 }),
+      Object.freeze({ x: 6380, y: 196, z: 380, heading: 152 }),
+    ]),
+    waypoints: Object.freeze([]),
+    start: Object.freeze({ x: 4360, y: 286, z: -2100, heading: 142 }),
+    stages: Object.freeze([
+      Object.freeze({ id: 'run-in', kind: 'rings', title: 'RUN-IN', goal: 'Thread three coastal gates', rings: 3 }),
+      Object.freeze({ id: 'intercept', kind: 'destroy', title: 'INTERCEPT', goal: 'Splash the raider pair', targets: Object.freeze(['raider-1', 'raider-2']) }),
+      Object.freeze({ id: 'strike', kind: 'destroy', title: 'STRIKE', goal: 'Silence the flotilla', targets: Object.freeze(['gunboat-1', 'flak-1', 'flak-2']) }),
+      Object.freeze({ id: 'egress', kind: 'rings', title: 'EGRESS', goal: 'Exit through the last gate', rings: 4 }),
+    ]),
+    waves: Object.freeze([
+      Object.freeze({ id: 'raiders', at: 1, units: Object.freeze([
+        Object.freeze({ id: 'raider-1', kind: 'fighter', x: 5560, y: 214, z: -760, heading: 318, speed: 100, ace: true }),
+        Object.freeze({ id: 'raider-2', kind: 'fighter', x: 5790, y: 176, z: -640, heading: 330, speed: 92, ace: false }),
+      ]) }),
+      Object.freeze({ id: 'flotilla', at: 2, units: Object.freeze([
+        Object.freeze({ id: 'gunboat-1', kind: 'gunboat', x: 6180, y: 0, z: -140, heading: 118, speed: 4.5 }),
+        Object.freeze({ id: 'flak-1', kind: 'flak', x: 5680, y: 0, z: -520, heading: 90, speed: 0 }),
+        Object.freeze({ id: 'flak-2', kind: 'flak', x: 5980, y: 0, z: 130, heading: 90, speed: 0 }),
+      ]) }),
+    ]),
+  }),
   Object.freeze({
     id: 'ridge', kind: 'rings', name: 'RIDGE RINGS', goal: 'Thread eight headland rings',
     timeLimit: 150, time: 150,
@@ -120,4 +172,7 @@ export const HUD = Object.freeze({
   instruments: Object.freeze({ y: 726, radius: 34, centres: [70, 164, 258] }),
   engine: Object.freeze({ x: 1030, y: 690, width: 210, height: 92 }),
   mission: Object.freeze({ x: 24, y: 20, width: 406, height: 76 }),
+  stages: Object.freeze({ x: 24, y: 104, width: 406, height: 96 }),
+  weapons: Object.freeze({ x: 306, y: 686, width: 300, height: 96 }),
+  radar: Object.freeze({ x: 1148, y: 584, radius: 60 }),
 });

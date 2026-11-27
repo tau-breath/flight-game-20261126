@@ -92,15 +92,27 @@ function drawTitle(ctx) {
   ctx.beginPath();
   ctx.moveTo(74, 470); ctx.lineTo(595, 470);
   ctx.stroke();
-  tracked(ctx, 'W/S PITCH   A/D ROLL   Q/E RUDDER', 74, 505, 13, HUD.cream, 1.4);
-  tracked(ctx, 'SHIFT/CTRL THROTTLE   G GEAR   C CAMERA', 74, 535, 13, HUD.cream, 1.4);
-  tracked(ctx, 'P PAUSE   R RESTART   M MUTE', 74, 565, 13, HUD.cream, 1.4);
+  tracked(ctx, 'W/S PITCH   A/D ROLL   Q/E RUDDER', 74, 499, 13, HUD.cream, 1.4);
+  tracked(ctx, 'SPACE GUNS   F ROCKET   X FLARES   Z BARREL ROLL', 74, 527, 13, HUD.amber, 1.4);
+  tracked(ctx, 'SHIFT/CTRL THROTTLE   G GEAR   C CAMERA', 74, 555, 13, HUD.cream, 1.4);
+  tracked(ctx, 'P PAUSE   R RESTART   M MUTE', 74, 583, 13, HUD.cream, 1.4);
 
   const pulse = 0.78 + Math.sin(performance.now() * 0.004) * 0.22;
   ctx.fillStyle = `rgba(198,154,82,${pulse})`;
   ctx.fillRect(74, 625, 286, 52);
   tracked(ctx, 'PRESS SPACE', 217, 651, 20, HUD.ink, 4, 'center');
-  label(ctx, 'An original high-wing adventure over sea, cliff and fjord.', 74, 718, 14, 'rgba(243,231,206,0.68)', 'left', 400);
+  label(ctx, 'An original coast-patrol sortie: gates, raiders and a flotilla in the bay.', 74, 718, 14, 'rgba(243,231,206,0.68)', 'left', 400);
+}
+
+const CARD_DETAILS = [
+  '3 GATES · 2 RAIDERS · FLOTILLA · EXIT',
+  '8 RINGS · RIDGE LINE',
+  '6 GATES · LOW PASS',
+  'WAYPOINTS · RUNWAY 09',
+];
+
+function cardDetail(index) {
+  return CARD_DETAILS[index] || '';
 }
 
 function drawMissionCard(ctx, mission, index, selected, x, y, width, height) {
@@ -122,8 +134,8 @@ function drawMissionCard(ctx, mission, index, selected, x, y, width, height) {
   label(ctx, `${mission.time} S`, x + width - 59, y + 42, 14, selected ? HUD.ink : HUD.cream, 'center', 800);
 
   const words = mission.name.split(' ');
-  tracked(ctx, words[0], x + 24, y + 112, 32, HUD.cream, 1.5);
-  tracked(ctx, words.slice(1).join(' '), x + 24, y + 151, 32, HUD.cream, 1.5);
+  tracked(ctx, words[0], x + 22, y + 112, 30, HUD.cream, 1.4);
+  tracked(ctx, words.slice(1).join(' '), x + 22, y + 149, 30, HUD.cream, 1.4);
   label(ctx, mission.goal, x + 24, y + 211, 15, 'rgba(243,231,206,0.76)', 'left', 500);
 
   ctx.strokeStyle = 'rgba(243,231,206,0.25)';
@@ -131,8 +143,7 @@ function drawMissionCard(ctx, mission, index, selected, x, y, width, height) {
   ctx.beginPath();
   ctx.moveTo(x + 24, y + 249); ctx.lineTo(x + width - 24, y + 249);
   ctx.stroke();
-  const detail = index === 0 ? '8 RINGS · RIDGE LINE' : index === 1 ? '6 GATES · LOW PASS' : 'WAYPOINTS · RUNWAY 09';
-  tracked(ctx, detail, x + 24, y + 276, 11, selected ? HUD.amber : HUD.brass, 1.2);
+  tracked(ctx, cardDetail(index), x + 24, y + 276, 10.5, selected ? HUD.amber : HUD.brass, 1.1);
   if (selected) {
     ctx.fillStyle = HUD.amber;
     ctx.beginPath();
@@ -157,15 +168,15 @@ function drawMissionSelect(ctx, world) {
   label(ctx, 'Three routes. One stout little monoplane.', 72, 174, 16, 'rgba(243,231,206,0.72)', 'left', 400);
 
   const selected = Math.max(0, Math.min(MISSIONS.length - 1, world.menuIndex || 0));
-  const width = 360;
-  const gap = 30;
-  const startX = (DESIGN.width - (width * 3 + gap * 2)) / 2;
+  const width = 292;
+  const gap = 20;
+  const startX = (DESIGN.width - (width * MISSIONS.length + gap * (MISSIONS.length - 1))) / 2;
   for (let index = 0; index < MISSIONS.length; index += 1) {
     drawMissionCard(ctx, MISSIONS[index], index, index === selected, startX + index * (width + gap), 235, width, 330);
   }
-  tracked(ctx, 'ARROW KEYS SELECT', DESIGN.width / 2, 636, 12, HUD.cream, 2, 'center');
-  tracked(ctx, 'SPACE CONFIRM   ·   ESC BACK', DESIGN.width / 2, 670, 14, HUD.amber, 2, 'center');
-  label(ctx, 'Tip: hold your speed through the rings. Climb before you turn.', DESIGN.width / 2, 742, 13, 'rgba(243,231,206,0.62)', 'center', 400);
+  tracked(ctx, 'ARROW KEYS SELECT', DESIGN.width / 2, 632, 12, HUD.cream, 2, 'center');
+  tracked(ctx, 'SPACE CONFIRM   ·   ESC BACK', DESIGN.width / 2, 666, 14, HUD.amber, 2, 'center');
+  label(ctx, 'Tip: lock a bandit by holding the nose on it, then F for a rocket.', DESIGN.width / 2, 738, 13, 'rgba(243,231,206,0.62)', 'center', 400);
 }
 
 function drawPaused(ctx) {
@@ -239,6 +250,12 @@ function drawDebrief(ctx, world) {
   tracked(ctx, 'BEST SCORE', 795, 442, 12, HUD.brass, 2, 'center');
   label(ctx, score.toLocaleString('en-US'), 485, 486, 40, HUD.cream, 'center', 800);
   label(ctx, best.toLocaleString('en-US'), 795, 486, 40, HUD.amber, 'center', 800);
+  const combat = world.combat;
+  if (combat) {
+    const accuracy = combat.shots > 0 ? Math.round(combat.hits / combat.shots * 100) : 0;
+    tracked(ctx, `KILLS ${combat.kills}   ·   GUN HITS ${combat.hits}   ·   ACCURACY ${accuracy}%   ·   HULL ${Math.max(0, Math.round(100 - world.state.damage))}%`,
+      DESIGN.width / 2, 540, 12, HUD.brass, 1.6, 'center');
+  }
   tracked(ctx, 'SPACE TO FLY AGAIN · ESC FOR MISSIONS', DESIGN.width / 2, 584, 14, HUD.amber, 1.8, 'center');
   label(ctx, 'R restarts the selected sortie immediately.', DESIGN.width / 2, 624, 12,
     'rgba(243,231,206,0.62)', 'center', 500);

@@ -1,7 +1,7 @@
 // Arcade-sim flight in metres and seconds. Velocity chases the nose while gravity trades speed
 // for height; bank produces a coordinated turn, and only a disciplined runway arrival is survivable.
 import * as THREE from 'three';
-import { AIRCRAFT, AIRFIELD, FLIGHT, STEP } from './config.js';
+import { AIRCRAFT, AIRFIELD, COMBAT, FLIGHT, STEP } from './config.js';
 import { clamp, createRandom, damp, wrapDegrees } from './mathutil.js';
 import { sampleTerrainHeight } from './terrain.js';
 import { gradeTouchdown } from './missions.js';
@@ -50,6 +50,9 @@ export function resetFlight(state, position = [0, 850, 0], headingDeg = 0, speed
   state.touchdown = null;
   state.contact = null;
   state.flightTime = 0;
+  state.flareTimer = 0;
+  state.evadeTimer = 0;
+  state.rollVisual = 0;
 }
 
 export function createFlightState() {
@@ -58,7 +61,7 @@ export function createFlightState() {
     throttle: 0.72, fuel: 100, damage: 0, gearDown: true, gearTarget: 1, gearFraction: 1,
     speed: 0, verticalSpeed: 0, heading: 0, pitch: 0, bank: 0, gForce: 1, stall: false,
     crashed: false, onGround: false, onWater: false, rolling: false, touchdown: null, contact: null,
-    flightTime: 0,
+    flightTime: 0, flareTimer: 0, evadeTimer: 0, rollVisual: 0,
   };
   resetFlight(state);
   return state;
@@ -173,6 +176,8 @@ export function stepFlight(model, state, input, dt = STEP) {
   if (state.fuel <= 0) state.throttle = 0;
   state.gearTarget = state.gearDown ? 1 : 0;
   state.gearFraction = damp(state.gearFraction, state.gearTarget, 3.2, dt);
+  state.flareTimer = Math.max(0, state.flareTimer - dt);
+  state.evadeTimer = Math.max(0, state.evadeTimer - dt);
 
   scratchForward.copy(LOCAL_FORWARD).applyQuaternion(state.quaternion).normalize();
   scratchRight.copy(LOCAL_RIGHT).applyQuaternion(state.quaternion).normalize();
@@ -186,6 +191,13 @@ export function stepFlight(model, state, input, dt = STEP) {
   state.quaternion.multiply(scratchQuaternion).normalize();
   scratchEuler.set(0, -input.yaw * FLIGHT.rudderRate * clamp(speed / 30, 0.25, 1) * dt, 0, 'YXZ');
   state.quaternion.multiply(scratchQuaternion.setFromEuler(scratchEuler)).normalize();
+  // The barrel roll is flown on the roll axis, not the stick: it turns the world over for a second
+  // and cuts incoming fire, at the cost of losing sight of the target.
+  if (state.evadeTimer > 0) {
+    scratchQuaternion.setFromAxisAngle(LOCAL_FORWARD, COMBAT.evadeTurn * dt);
+    state.quaternion.multiply(scratchQuaternion).normalize();
+    state.rollVisual += COMBAT.evadeTurn * dt;
+  }
 
   scratchForward.copy(LOCAL_FORWARD).applyQuaternion(state.quaternion).normalize();
   scratchRight.copy(LOCAL_RIGHT).applyQuaternion(state.quaternion).normalize();

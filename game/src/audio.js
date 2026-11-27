@@ -261,6 +261,43 @@ export function createAudio() {
       noiseBurst(0.9, 0.42, 1800, 65, 'lowpass');
       tone(155, 0, 1.05, 'sine', 0.28, 29);
     },
+    gun() {
+      noiseBurst(0.055, 0.1, 2600, 700, 'bandpass');
+      tone(148, 0, 0.05, 'square', 0.032, 92);
+    },
+    enemyGun(volume = 0.6) {
+      noiseBurst(0.07, 0.06 * volume, 1500, 400, 'bandpass');
+    },
+    explosion(volume = 1) {
+      noiseBurst(0.75, 0.3 * volume, 1400, 55, 'lowpass');
+      tone(88, 0, 0.7, 'sine', 0.2 * volume, 32);
+    },
+    flak(volume = 1) {
+      noiseBurst(0.3, 0.1 * volume, 900, 180, 'bandpass');
+      tone(70, 0.02, 0.28, 'sine', 0.07 * volume, 40);
+    },
+    rocket() {
+      noiseBurst(0.55, 0.16, 300, 2400, 'bandpass');
+      tone(190, 0, 0.5, 'sawtooth', 0.06, 520);
+    },
+    lock() {
+      tone(1180, 0, 0.09, 'square', 0.05);
+      tone(1560, 0.1, 0.12, 'square', 0.045);
+    },
+    flare() {
+      noiseBurst(0.45, 0.12, 2200, 600, 'bandpass');
+      tone(660, 0, 0.3, 'triangle', 0.05, 320);
+    },
+    evade() {
+      noiseBurst(0.5, 0.09, 500, 1800, 'bandpass');
+    },
+    hit() {
+      tone(2100, 0, 0.045, 'square', 0.03, 1600);
+    },
+    hurt() {
+      noiseBurst(0.16, 0.14, 900, 120, 'lowpass');
+      tone(120, 0, 0.18, 'square', 0.05, 70);
+    },
     stall,
     get muted() {
       return isMuted;

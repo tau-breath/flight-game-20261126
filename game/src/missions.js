@@ -1,10 +1,25 @@
-// The three playable sorties: route progress, clocks, ring scoring, low-gate warnings and grades.
-import { AIRFIELD, MISSIONS } from './config.js';
+// The sorties: a staged strike (gates, raiders, flotilla, egress), the two timed runs and the
+// landing approach. Every stage is a goal the HUD can name, and the strike's stages open fires
+// through world.onStageEnter so the mission data never has to know how a raider is built.
+import { AIRFIELD, COMBAT, MISSIONS } from './config.js';
 import { sampleTerrainHeight } from './terrain.js';
+
+function stageState(definition) {
+  return {
+    id: definition.id,
+    kind: definition.kind,
+    title: definition.title,
+    goal: definition.goal,
+    rings: definition.rings ?? 0,
+    targets: definition.targets ? [...definition.targets] : [],
+    done: false,
+  };
+}
 
 export function createMission(index = 0) {
   const definition = MISSIONS[Math.max(0, Math.min(MISSIONS.length - 1, index))];
   return {
+    index: Math.max(0, Math.min(MISSIONS.length - 1, index)),
     id: definition.id,
     kind: definition.kind,
     name: definition.name,
@@ -12,13 +27,20 @@ export function createMission(index = 0) {
     timeLimit: definition.timeLimit,
     rings: definition.route.map((point) => ({ ...point })),
     waypoints: definition.waypoints.map((point) => ({ ...point })),
+    waves: definition.waves || [],
+    start: definition.start || null,
+    stages: (definition.stages || []).map(stageState),
+    stageIndex: 0,
     elapsed: 0,
     timeLeft: definition.timeLimit,
     ringsPassed: 0,
     activeRing: 0,
     waypointIndex: 0,
     score: 0,
+    kills: 0,
     warning: '',
+    toast: '',
+    toastTime: -9,
     finished: false,
     grade: '',
     previousPosition: null,
@@ -33,6 +55,7 @@ export function gradeTouchdown(sinkRate, speedKt) {
 }
 
 export function missionStartPosition(mission) {
+  if (mission.start) return [mission.start.x, mission.start.y, mission.start.z];
   if (mission.kind === 'home') {
     const point = mission.waypoints[0];
     const heading = AIRFIELD.heading * Math.PI / 180;
@@ -43,11 +66,64 @@ export function missionStartPosition(mission) {
   return [point.x - Math.sin(heading) * 380, point.y, point.z + Math.cos(heading) * 380];
 }
 
+function announceStage(mission, world) {
+  const stage = mission.stages[mission.stageIndex];
+  if (stage) {
+    mission.goal = stage.goal;
+    mission.toast = stage.title;
+    mission.toastTime = mission.elapsed;
+  }
+  world.onStageEnter?.(mission.stageIndex);
+}
+
+function completeStage(mission, world) {
+  const stage = mission.stages[mission.stageIndex];
+  if (!stage) return;
+  stage.done = true;
+  mission.score += 150;
+  mission.stageIndex += 1;
+  world.score = Math.round(mission.score);
+  if (mission.stageIndex >= mission.stages.length) {
+    mission.finished = true;
+    mission.grade = 'SORTIE COMPLETE';
+    mission.score += Math.round(mission.timeLeft * 3);
+    return;
+  }
+  announceStage(mission, world);
+}
+
+function countKills(mission, world) {
+  const forces = world.forces;
+  if (!forces) return;
+  let kills = 0;
+  for (const unit of forces.units) if (!unit.alive) kills += 1;
+  mission.kills = kills;
+}
+
+function stepStage(mission, world) {
+  const stage = mission.stages[mission.stageIndex];
+  if (!stage || mission.finished) return;
+  if (stage.kind === 'rings') {
+    if (mission.ringsPassed >= stage.rings) completeStage(mission, world);
+    return;
+  }
+  if (stage.kind === 'destroy') {
+    const forces = world.forces;
+    if (!forces) return;
+    const remaining = stage.targets.some((id) => {
+      const unit = forces.byId.get(id);
+      return unit ? unit.alive : false;
+    });
+    if (!remaining) completeStage(mission, world);
+  }
+}
+
 export function stepMission(mission, world, dt) {
   if (mission.finished) return mission;
   mission.elapsed += dt;
   mission.timeLeft = Math.max(0, mission.timeLimit - mission.elapsed);
   mission.warning = '';
+  countKills(mission, world);
 
   if (mission.kind === 'fjord') {
     const ground = sampleTerrainHeight(world.state.position.x, world.state.position.z);
@@ -58,7 +134,7 @@ export function stepMission(mission, world, dt) {
     }
   }
 
-  if (mission.kind === 'rings' || mission.kind === 'fjord') {
+  if (mission.kind === 'rings' || mission.kind === 'fjord' || mission.kind === 'strike') {
     const ring = mission.rings[mission.activeRing];
     if (ring && mission.previousPosition) {
       const axisHeading = (ring.heading || 0) * Math.PI / 180;
@@ -79,12 +155,16 @@ export function stepMission(mission, world, dt) {
       const radialSq = currentOffset.x * currentOffset.x + currentOffset.y * currentOffset.y
         + currentOffset.z * currentOffset.z - after * after;
       if (before * after <= 0 && radialSq <= 26 * 26) {
+        const offCentre = Math.sqrt(Math.max(0, radialSq)) / 26;
         mission.ringsPassed += 1;
         mission.activeRing += 1;
-        const bonus = 100 + Math.round(mission.timeLeft);
+        const accuracy = 1 - offCentre;
+        const bonus = Math.round(COMBAT.scoreGate * (0.7 + accuracy * 0.5)) + Math.round(mission.timeLeft);
         mission.score += bonus;
-        world.score = mission.score;
-        if (mission.ringsPassed >= mission.rings.length) {
+        mission.toast = offCentre < 0.45 ? 'GATE · CENTRE PASS' : 'GATE';
+        mission.toastTime = mission.elapsed;
+        world.score = Math.round(mission.score);
+        if (mission.kind !== 'strike' && mission.ringsPassed >= mission.rings.length) {
           mission.finished = true;
           mission.grade = 'COMPLETE';
         }
@@ -104,6 +184,8 @@ export function stepMission(mission, world, dt) {
       }
     }
   }
+
+  if (mission.kind === 'strike') stepStage(mission, world);
 
   if (world.state.touchdown && mission.kind === 'home') {
     mission.finished = true;

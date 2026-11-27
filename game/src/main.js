@@ -1,8 +1,13 @@
 // Boot, rendering and screen flow. One requestAnimationFrame loop drives a fixed 1/60 s simulation;
-// the two canvases share a resize but only the WebGL canvas owns the 3D scene.
+// the two canvases share a resize but only the WebGL canvas owns the 3D scene. Everything the
+// weapons and the AI raise in a step lands in world.events and is drained here, where sound and
+// particles live.
 import * as THREE from 'three';
 import { MAX_FRAME, STEP } from './config.js';
-import { createInput, ACTION_CAMERA, ACTION_CONFIRM, ACTION_GEAR, ACTION_MUTE, ACTION_PAUSE, ACTION_RESTART } from './input.js';
+import {
+  createInput, ACTION_CAMERA, ACTION_CONFIRM, ACTION_EVADE, ACTION_FLARE, ACTION_GEAR, ACTION_MUTE,
+  ACTION_PAUSE, ACTION_RESTART, ACTION_ROCKET, ACTION_TARGET,
+} from './input.js';
 import { createWorld } from './world.js';
 import { createTerrain, sampleTerrainHeight } from './terrain.js';
 import { createSky } from './sky.js';
@@ -13,8 +18,10 @@ import { createCameraRig, updateCamera } from './camera.js';
 import { drawHud } from './hud.js';
 import { drawScreen } from './screens.js';
 import { stageShot } from './shots.js';
-import { createEffects, resetEffects, updateEffects } from './effects.js';
+import { createEffects, emitEffect, resetEffects, updateEffects } from './effects.js';
 import { createAudio } from './audio.js';
+import { createCombat, deployFlare, fireRocket, resetCombat, startEvade } from './combat.js';
+import { createForces, syncForces } from './enemies.js';
 
 const params = new URLSearchParams(window.location.search);
 const shotName = params.get('shot');
@@ -51,7 +58,9 @@ const sunGlow = scene.getObjectByName('Sun glow');
 const aircraft = createAircraft(scene);
 const effects = createEffects(scene);
 const audio = createAudio();
-const audioEvents = { initialized: false, rings: 0, touchdownTime: -1, crashed: false };
+const forces = createForces(scene);
+const combat = createCombat(scene);
+world.attachSystems({ forces, combat });
 const airfield = createAirfield(scene);
 const lighthouse = createLighthouse(scene);
 let rings = createRings(scene, world.mission);
@@ -84,6 +93,7 @@ function scenicReset() {
   world.state.throttle = 0.67;
 }
 scenicReset();
+syncForces(forces);
 
 let screen = 'TITLE';
 let cameraMode = 'chase';
@@ -91,6 +101,8 @@ let fps = 60;
 let lastFrameTime = performance.now();
 let accumulator = 0;
 let announcedScreen = '';
+let input = null;
+let lockWasHeld = false;
 
 function announce(message) {
   if (status) status.textContent = message;
@@ -102,7 +114,7 @@ function setScreen(next) {
     announcedScreen = screen;
     if (screen === 'TITLE') announce('WINDWARD Coast Patrol. Press Space to begin.');
     else if (screen === 'MENU') announce('Mission select. Use arrow keys and press Space.');
-    else if (screen === 'FLYING') announce('Flying. W and S pitch, A and D roll, Q and E rudder.');
+    else if (screen === 'FLYING') announce('Flying. Space fires the guns, F launches a rocket, X flares, Z barrel roll.');
     else if (screen === 'PAUSED') announce('Paused. Press P or Escape to resume.');
     else if (screen === 'DEBRIEF') announce(world.state.crashed ? 'Wrecked. Press R to fly again.' : 'Sortie ended.');
   }
@@ -114,6 +126,8 @@ function unlockAudio() {
 window.addEventListener('keydown', unlockAudio, { passive: true });
 window.addEventListener('pointerdown', unlockAudio, { passive: true });
 window.addEventListener('click', unlockAudio);
+
+const audioEvents = { initialized: false, rings: 0, touchdownTime: -1, crashed: false, locked: false };
 
 function syncAudioEvents() {
   if (!audioEvents.initialized) {
@@ -139,6 +153,34 @@ function syncAudioEvents() {
 
   if (world.crashed && !audioEvents.crashed) audio.crash();
   audioEvents.crashed = world.crashed;
+
+  const locked = Boolean(combat.locked);
+  if (locked && !audioEvents.locked) audio.lock();
+  audioEvents.locked = locked;
+}
+
+/** Turn the step's events into particles and sound once per rendered frame. */
+function drainEvents() {
+  if (!world.events.length) return;
+  const position = world.state.position;
+  for (const event of world.events) {
+    emitEffect(effects, event);
+    const distance = Math.hypot(event.x - position.x, event.y - position.y, event.z - position.z);
+    const falloff = Math.max(0.1, Math.min(1, 1 - distance / 1700));
+    switch (event.type) {
+      case 'gun': audio.gun(); break;
+      case 'enemy-gun': audio.enemyGun(falloff); break;
+      case 'explosion': audio.explosion(falloff * Math.min(1.4, event.scale)); break;
+      case 'flak': audio.flak(falloff); break;
+      case 'player-hit': audio.hurt(); break;
+      case 'launch': audio.rocket(); break;
+      case 'flare': audio.flare(); break;
+      case 'evade': audio.evade(); break;
+      case 'impact': if (event.scale > 0.8) audio.hit(); break;
+      default: break;
+    }
+  }
+  world.events.length = 0;
 }
 
 function resize() {
@@ -158,6 +200,8 @@ resize();
 
 function renderFrame(dt) {
   updateAircraft(aircraft, world.state, dt);
+  syncForces(forces);
+  drainEvents();
   updateEffects(effects, world, dt);
   syncAudioEvents();
   audio.updateFlight(world.state);
@@ -178,40 +222,50 @@ function renderFrame(dt) {
   renderer.render(scene, camera);
 
   if (screen === 'FLYING' || screen === 'PAUSED') {
-    drawHud(hudContext, world.state, world, hudCanvas.width, hudCanvas.height, cameraMode, rings, camera);
+    drawHud(hudContext, world.state, world, hudCanvas.width, hudCanvas.height, cameraMode, rings, camera, input);
     if (screen === 'PAUSED') drawScreen(hudContext, 'PAUSED', world, hudCanvas.width, hudCanvas.height);
   } else {
     drawScreen(hudContext, screen, world, hudCanvas.width, hudCanvas.height);
   }
 }
 
-function startMission(index = world.menuIndex) {
-  world.startMission(index);
+function resetRunSystems() {
   resetEffects(effects);
+  resetCombat(combat);
   audioEvents.initialized = false;
   audioEvents.rings = 0;
   audioEvents.touchdownTime = -1;
   audioEvents.crashed = false;
+  audioEvents.locked = false;
+  lockWasHeld = false;
+}
+
+function startMission(index = world.menuIndex) {
+  world.startMission(index);
+  resetRunSystems();
   rebuildRings();
+  syncForces(forces);
   cameraMode = 'chase';
   cameraRig.initialized = false;
   accumulator = 0;
   setScreen('FLYING');
 }
 
-function startFreeFlight() {
-  startMission(world.menuIndex);
-}
-
 function runShot(name) {
-  const staged = stageShot(name, world);
-  resetEffects(effects);
-  audioEvents.initialized = false;
-  audioEvents.rings = 0;
-  audioEvents.touchdownTime = -1;
-  audioEvents.crashed = false;
+  resetRunSystems();
+  const systems = {
+    forces,
+    combat,
+    tick(dt, ai) {
+      world.step(dt, ai);
+      drainEvents();
+      updateEffects(effects, world, dt);
+    },
+  };
+  const staged = stageShot(name, world, systems);
   rebuildRings();
   if (staged.ringIndex >= 0) pickActiveRing(rings, staged.ringIndex);
+  syncForces(forces);
   screen = staged.screen;
   cameraMode = staged.cameraMode;
   cameraRig.initialized = false;
@@ -236,7 +290,7 @@ function runShot(name) {
 }
 
 function runGame() {
-  const input = createInput(sceneCanvas);
+  input = createInput(sceneCanvas);
   world.menuIndex = 0;
   let previousLeft = false;
   let previousRight = false;
@@ -250,7 +304,7 @@ function runGame() {
     const down = input.keys.has('ArrowDown');
     const direction = (right && !previousRight ? 1 : 0) - (left && !previousLeft ? 1 : 0)
       + (down && !previousDown ? 1 : 0) - (up && !previousUp ? 1 : 0);
-    if (direction !== 0) world.menuIndex = (world.menuIndex + direction + 3) % 3;
+    if (direction !== 0) world.menuIndex = (world.menuIndex + direction + 4) % 4;
     previousLeft = left;
     previousRight = right;
     previousUp = up;
@@ -263,7 +317,7 @@ function runGame() {
     if (screen === 'TITLE') {
       if (actions & ACTION_CONFIRM) setScreen('MENU');
     } else if (screen === 'MENU') {
-      if (actions & ACTION_CONFIRM) startFreeFlight();
+      if (actions & ACTION_CONFIRM) startMission();
       else if (actions & ACTION_PAUSE) setScreen('TITLE');
     } else if (screen === 'FLYING') {
       if (actions & ACTION_PAUSE) setScreen('PAUSED');
@@ -272,12 +326,22 @@ function runGame() {
         cameraMode = cameraMode === 'chase' ? 'cockpit' : 'chase';
         cameraRig.initialized = false;
       }
-      if (actions & ACTION_RESTART) startFreeFlight();
+      if (actions & ACTION_RESTART) startMission();
+      if (actions & ACTION_TARGET) combat.lockTarget = null;
+      if (actions & ACTION_FLARE) deployFlare(combat, world);
+      if (actions & ACTION_EVADE) startEvade(world);
+      if (actions & ACTION_ROCKET) {
+        if (combat.locked && combat.lockTarget) fireRocket(combat, world);
+        else {
+          world.mission.toast = 'NO LOCK — HOLD THE NOSE ON A BANDIT';
+          world.mission.toastTime = world.mission.elapsed;
+        }
+      }
     } else if (screen === 'PAUSED') {
       if (actions & (ACTION_PAUSE | ACTION_CONFIRM)) setScreen('FLYING');
-      else if (actions & ACTION_RESTART) startFreeFlight();
+      else if (actions & ACTION_RESTART) startMission();
     } else if (screen === 'DEBRIEF') {
-      if (actions & ACTION_RESTART || actions & ACTION_CONFIRM) startFreeFlight();
+      if (actions & ACTION_RESTART || actions & ACTION_CONFIRM) startMission();
       else if (actions & ACTION_PAUSE) setScreen('MENU');
     }
   }
@@ -328,6 +392,8 @@ function runGame() {
     gearDown: world.state.gearDown, score: world.score, rings: world.mission.ringsPassed,
     activeRing: world.mission.activeRing + 1, timeLeft: Number(world.mission.timeLeft.toFixed(1)),
     warning: world.mission.warning, finished: world.finished, grade: world.grade,
+    stage: world.mission.stageIndex, ammo: combat.ammo, missiles: combat.missilesLeft,
+    kills: combat.kills, locked: combat.locked,
   });
 
   setScreen('TITLE');
@@ -366,6 +432,14 @@ window.__diag = () => {
     score: world.score,
     effects: effects.live,
     ringScreen,
+    combat: {
+      ammo: combat.ammo, missiles: combat.missilesLeft, flares: combat.flares,
+      hits: combat.hits, shots: combat.shots, kills: combat.kills,
+      locked: combat.locked, lockTarget: combat.lockTarget?.id ?? null,
+      damage: Number(world.state.damage.toFixed(1)),
+    },
+    enemies: forces.units.filter((unit) => unit.alive).length,
+    stage: world.mission.stageIndex,
     error: firstError,
   };
 };

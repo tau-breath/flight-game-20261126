@@ -1,7 +1,9 @@
-// 2D brass-and-cream flight HUD, drawn in a fixed 1280x800 design space and scaled to the canvas.
-import { DESIGN, FONT, HUD, PALETTE } from './config.js';
+// 2D brass-and-cream flight HUD, drawn in a fixed 1280x800 design space and scaled to the canvas:
+// instruments, the stage board, the lock ring, the threat and radar picture, the weapons strip.
+import { COMBAT, DESIGN, FONT, HUD, PALETTE } from './config.js';
 import * as THREE from 'three';
 import { clamp, wrapDegrees } from './mathutil.js';
+import { layoutTouchControls } from './input.js';
 
 function gauge(ctx, x, y, radius, label, value, state, kind) {
   ctx.fillStyle = '#0B2026';
@@ -78,49 +80,275 @@ function drawCockpitPanel(ctx, state) {
   gauge(ctx, 470, 690, 47, 'AIRSPEED', `${Math.round(state.speed * 1.94384)} KT`, state, 'speed');
   gauge(ctx, 640, 690, 47, 'ATTITUDE', `${Math.round(state.bank * 180 / Math.PI)}°`, state, 'attitude');
   gauge(ctx, 810, 690, 47, 'ALTITUDE', `${Math.round(state.position.y)} M`, state, 'altitude');
-  text(ctx, `THR ${Math.round(state.throttle * 100)}%`, 885, 660, 13, HUD.amber, 'center');
-  text(ctx, `FUEL ${Math.round(state.fuel)}%`, 885, 690, 13, HUD.cream, 'center');
-  text(ctx, `GEAR ${state.gearDown ? 'DOWN' : 'UP'}`, 885, 720, 13, HUD.cream, 'center');
+  text(ctx, `HDG ${String(Math.round(wrapDegrees(state.heading))).padStart(3, '0')}`, 885, 656, 13, HUD.amber, 'center');
+  text(ctx, `THR ${Math.round(state.throttle * 100)}%`, 885, 682, 13, HUD.cream, 'center');
+  text(ctx, `FUEL ${Math.round(state.fuel)}%`, 885, 708, 13, HUD.cream, 'center');
+  text(ctx, `GEAR ${state.gearDown ? 'DOWN' : 'UP'}`, 885, 734, 13, HUD.cream, 'center');
 }
 
-/** Project the active target and draw a diamond, distance and off-screen bearing. */
-export function drawTargetDiamond(ctx, state, target, camera = null) {
-  if (!target || !camera) return;
-  const position = new THREE.Vector3(target.position.x, target.position.y, target.position.z);
+function projectToDesign(target, camera) {
+  const position = new THREE.Vector3(target.x, target.y, target.z);
   position.project(camera);
-  const onScreen = position.z >= -1 && position.z <= 1;
-  let x = (position.x * 0.5 + 0.5) * DESIGN.width;
-  let y = (-position.y * 0.5 + 0.5) * DESIGN.height;
+  return {
+    x: (position.x * 0.5 + 0.5) * DESIGN.width,
+    y: (-position.y * 0.5 + 0.5) * DESIGN.height,
+    depth: position.z,
+  };
+}
+
+/** The four-corner bracket that names, ranges and holds a bandit once the ring is full. */
+export function drawLockBox(ctx, state, target, combat, camera = null) {
+  if (!target || !camera) return;
+  const point = projectToDesign(target, camera);
   const distance = Math.round(Math.hypot(
-    target.position.x - state.position.x,
-    target.position.y - state.position.y,
-    target.position.z - state.position.z,
-  ));
-  if (!onScreen || x < 90 || x > DESIGN.width - 90 || y < 90 || y > DESIGN.height - 110) {
-    const bearing = Math.atan2(target.position.x - state.position.x, -(target.position.z - state.position.z)) * 180 / Math.PI;
-    let relative = ((bearing - state.heading + 540) % 360) - 180;
-    x = DESIGN.width / 2 + relative * 2.6;
-    y = DESIGN.height / 2;
-    x = Math.max(96, Math.min(DESIGN.width - 96, x));
-    y = 250;
-    ctx.strokeStyle = HUD.amber;
-    ctx.lineWidth = 3;
+    target.x - state.position.x, target.y - state.position.y, target.z - state.position.z));
+  const onScreen = point.depth >= -1 && point.depth <= 1
+    && point.x > 70 && point.x < DESIGN.width - 70 && point.y > 80 && point.y < DESIGN.height - 100;
+  const locked = combat.locked;
+  const colour = locked ? HUD.red : HUD.amber;
+
+  if (!onScreen) {
+    const bearing = Math.atan2(target.x - state.position.x, -(target.z - state.position.z)) * 180 / Math.PI;
+    const relative = ((bearing - state.heading + 540) % 360) - 180;
+    const edgeX = Math.max(70, Math.min(DESIGN.width - 70, DESIGN.width / 2 + relative * 3.1));
+    const above = target.y > state.position.y;
+    const edgeY = above ? 128 : DESIGN.height - 168;
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.moveTo(x - 9, y + 11); ctx.lineTo(x, y - 5); ctx.lineTo(x + 9, y + 11);
+    if (above) {
+      ctx.moveTo(edgeX - 11, edgeY + 12); ctx.lineTo(edgeX, edgeY - 4); ctx.lineTo(edgeX + 11, edgeY + 12);
+    } else {
+      ctx.moveTo(edgeX - 11, edgeY - 12); ctx.lineTo(edgeX, edgeY + 4); ctx.lineTo(edgeX + 11, edgeY - 12);
+    }
     ctx.stroke();
-    text(ctx, `${Math.round(Math.abs(relative))}°`, x, y + 24, 12, HUD.amber, 'center');
+    text(ctx, `${Math.round(Math.abs(relative))}° ${(distance / 1000).toFixed(1)}KM`, edgeX, edgeY + (above ? 26 : -24), 10, colour, 'center');
     return;
   }
 
-  ctx.strokeStyle = HUD.amber;
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.moveTo(x, y - 22); ctx.lineTo(x + 22, y); ctx.lineTo(x, y + 22); ctx.lineTo(x - 22, y);
-  ctx.closePath();
-  ctx.stroke();
-  text(ctx, `${Math.round(distance)} M`, x, y + 37, 12, HUD.cream, 'center');
+  const size = clamp(2600 / Math.max(60, distance), 16, 54);
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = locked ? 3 : 2;
+  const corner = size * 0.42;
+  for (const sx of [-1, 1]) {
+    for (const sy of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(point.x + sx * size - sx * corner, point.y + sy * size);
+      ctx.lineTo(point.x + sx * size, point.y + sy * size);
+      ctx.lineTo(point.x + sx * size, point.y + sy * size - sy * corner);
+      ctx.stroke();
+    }
+  }
+  if (!locked) {
+    ctx.strokeStyle = 'rgba(255,196,107,0.4)';
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, size * (1.5 - combat.lockProgress * 0.5), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  const label = target.kind === 'fighter' ? (target.ace ? 'RAIDER LEAD' : 'RAIDER') : target.kind === 'gunboat' ? 'GUNBOAT' : 'FLAK';
+  text(ctx, label, point.x, point.y - size - 22, 11, colour, 'center');
+  text(ctx, `${distance} M`, point.x, point.y + size + 18, 12, colour, 'center');
+  if (locked) {
+    const closing = Math.round(((state.velocity.x - 0) * (target.x - state.position.x)
+      + (state.velocity.y - 0) * (target.y - state.position.y)
+      + (state.velocity.z - 0) * (target.z - state.position.z)) / Math.max(1, distance));
+    trackedText(ctx, `LOCK · CLOSING ${Math.max(0, closing)} M/S`, point.x, point.y + size + 34, 9, HUD.red, 1.2, 'center');
+  }
 }
 
+function drawThreatMarks(ctx, state, forces, camera, lockTarget) {
+  if (!camera || !forces) return;
+  for (const unit of forces.units) {
+    if (!unit.alive || unit === lockTarget) continue;
+    const point = projectToDesign(unit, camera);
+    if (point.depth < -1 || point.depth > 1) continue;
+    if (point.x < 60 || point.x > DESIGN.width - 60 || point.y < 70 || point.y > DESIGN.height - 90) continue;
+    ctx.strokeStyle = 'rgba(226,86,74,0.85)';
+    ctx.lineWidth = 2;
+    const s = 7;
+    ctx.beginPath();
+    ctx.moveTo(point.x - s, point.y - s); ctx.lineTo(point.x + s, point.y + s);
+    ctx.moveTo(point.x + s, point.y - s); ctx.lineTo(point.x - s, point.y + s);
+    ctx.stroke();
+  }
+}
+
+/** A 1.6 km scope that turns with the nose: bandits amber, hulls red, the airfield a diamond. */
+export function drawRadar(ctx, state, forces, airfield) {
+  const box = HUD.radar;
+  const { x, y, radius } = box;
+  ctx.fillStyle = 'rgba(10,32,38,0.82)';
+  ctx.strokeStyle = HUD.panelEdge;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(198,154,82,0.32)';
+  ctx.lineWidth = 1;
+  for (const ring of [0.34, 0.67]) {
+    ctx.beginPath();
+    ctx.arc(x, y, radius * ring, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.moveTo(x - radius + 4, y); ctx.lineTo(x + radius - 4, y);
+  ctx.moveTo(x, y - radius + 4); ctx.lineTo(x, y + radius - 4);
+  ctx.stroke();
+  trackedText(ctx, 'SCOPE · 1.6KM', x, y - radius - 9, 8, HUD.brass, 1.4, 'center');
+
+  const heading = state.heading * Math.PI / 180;
+  const sin = Math.sin(heading);
+  const cos = Math.cos(heading);
+  const range = 1600;
+  const plot = (wx, wz) => {
+    const dx = wx - state.position.x;
+    const dz = wz - state.position.z;
+    const along = dx * sin - dz * cos;
+    const right = dx * cos + dz * sin;
+    const scale = radius / range;
+    const magnitude = Math.hypot(right, along);
+    const clampScale = magnitude > range ? range / magnitude : 1;
+    return {
+      x: x + right * scale * clampScale,
+      y: y - along * scale * clampScale,
+      edge: magnitude > range,
+    };
+  };
+
+  if (airfield) {
+    const point = plot(airfield.x, airfield.z);
+    ctx.strokeStyle = HUD.cream;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(point.x, point.y - 4); ctx.lineTo(point.x + 4, point.y);
+    ctx.lineTo(point.x, point.y + 4); ctx.lineTo(point.x - 4, point.y);
+    ctx.closePath();
+    ctx.stroke();
+  }
+
+  if (forces) {
+    for (const unit of forces.units) {
+      if (!unit.alive) continue;
+      const point = plot(unit.x, unit.z);
+      ctx.fillStyle = unit.kind === 'fighter' ? HUD.amber : HUD.red;
+      ctx.globalAlpha = point.edge ? 0.55 : 1;
+      ctx.beginPath();
+      if (unit.kind === 'fighter') {
+        ctx.arc(point.x, point.y, 3.2, 0, Math.PI * 2);
+      } else {
+        ctx.rect(point.x - 3.4, point.y - 3.4, 6.8, 6.8);
+      }
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+  ctx.fillStyle = HUD.cream;
+  ctx.beginPath();
+  ctx.moveTo(x, y - 5); ctx.lineTo(x + 3.6, y + 4); ctx.lineTo(x - 3.6, y + 4);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function hullColour(fraction) {
+  if (fraction < 0.34) return HUD.red;
+  if (fraction < 0.66) return HUD.amber;
+  return '#7FC8A5';
+}
+
+/** Hull segments, gun rounds, rockets, flares, throttle and fuel in one strip. */
+export function drawWeapons(ctx, state, world, x, y, width, height) {
+  const combat = world.combat;
+  if (!combat) return;
+  panel(ctx, x, y, width, height);
+  ctx.fillStyle = HUD.brass;
+  ctx.fillRect(x, y, 4, height);
+  const hull = clamp(1 - state.damage / 100, 0, 1);
+  trackedText(ctx, 'HULL', x + 16, y + 16, 9, HUD.cream, 1.6);
+  const barX = x + 58;
+  const barW = width - 76;
+  ctx.fillStyle = 'rgba(243,231,206,0.16)';
+  ctx.fillRect(barX, y + 9, barW, 13);
+  const segments = 10;
+  for (let index = 0; index < segments; index += 1) {
+    const lit = hull * segments > index;
+    ctx.fillStyle = lit ? hullColour(hull) : 'rgba(243,231,206,0.12)';
+    ctx.fillRect(barX + index * (barW / segments) + 1, y + 10, barW / segments - 2, 11);
+  }
+  text(ctx, `${Math.round(hull * 100)}`, x + width - 12, y + 16, 11, hullColour(hull), 'right');
+
+  trackedText(ctx, 'GUN', x + 16, y + 38, 9, HUD.cream, 1.6);
+  const ammoFraction = clamp(combat.ammo / COMBAT.gunAmmo, 0, 1);
+  ctx.fillStyle = 'rgba(243,231,206,0.16)';
+  ctx.fillRect(barX, y + 31, barW * 0.55, 9);
+  ctx.fillStyle = ammoFraction < 0.15 ? HUD.red : HUD.amber;
+  ctx.fillRect(barX, y + 31, barW * 0.55 * ammoFraction, 9);
+  text(ctx, String(combat.ammo).padStart(4, '0'), x + width - 12, y + 36, 10, HUD.cream, 'right');
+
+  const pipX = x + 16;
+  trackedText(ctx, 'RKT', pipX, y + 58, 9, HUD.cream, 1.6);
+  for (let index = 0; index < COMBAT.missileCount; index += 1) {
+    ctx.fillStyle = index < combat.missilesLeft ? HUD.amber : 'rgba(243,231,206,0.18)';
+    ctx.beginPath();
+    ctx.moveTo(x + 58 + index * 15, y + 53);
+    ctx.lineTo(x + 64 + index * 15, y + 63);
+    ctx.lineTo(x + 58 + index * 15, y + 63);
+    ctx.closePath();
+    ctx.fill();
+  }
+  trackedText(ctx, 'FLR', x + 150, y + 58, 9, HUD.cream, 1.6);
+  for (let index = 0; index < COMBAT.flareCount; index += 1) {
+    ctx.fillStyle = index < combat.flares ? '#FFD08A' : 'rgba(243,231,206,0.18)';
+    ctx.beginPath();
+    ctx.arc(x + 190 + index * 12, y + 58, 3.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  text(ctx, `THR ${Math.round(state.throttle * 100)}%  FUEL ${Math.round(state.fuel)}%  ${state.gearDown ? 'GEAR DOWN' : 'GEAR UP'}`,
+    x + width - 12, y + 58, 9.5, 'rgba(243,231,206,0.78)', 'right', 500);
+
+  const statusY = y + 78;
+  trackedText(ctx, state.evadeTimer > 0 ? 'BARREL ROLL' : state.flareTimer > 0 ? 'FLARES OUT' : combat.fireHeld ? 'GUNS FIRING' : 'GUNS SAFE',
+    x + 16, statusY, 10, state.evadeTimer > 0 || state.flareTimer > 0 ? HUD.amber : 'rgba(243,231,206,0.6)', 1.4);
+  const accuracy = combat.shots > 0 ? Math.round(combat.hits / combat.shots * 100) : 0;
+  text(ctx, `HITS ${combat.hits}  ·  ACC ${accuracy}%  ·  KILLS ${combat.kills}`,
+    x + width - 12, statusY, 9.5, 'rgba(243,231,206,0.66)', 'right', 500);
+}
+
+/** The stage board: one row per task, struck through as it is finished. */
+function drawStageBoard(ctx, world) {
+  const box = HUD.stages;
+  const stages = world.mission.stages;
+  if (!stages.length) return;
+  const height = 26 + stages.length * 19;
+  panel(ctx, box.x, box.y, box.width, height);
+  ctx.fillStyle = HUD.brass;
+  ctx.fillRect(box.x, box.y, 4, height);
+  trackedText(ctx, 'SORTIE BOARD', box.x + 16, box.y + 14, 9, HUD.brass, 2);
+  for (let index = 0; index < stages.length; index += 1) {
+    const stage = stages[index];
+    const y = box.y + 32 + index * 19;
+    const active = index === world.mission.stageIndex;
+    const colour = stage.done ? 'rgba(243,231,206,0.42)' : active ? HUD.amber : 'rgba(243,231,206,0.72)';
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(box.x + 22, y, 5.4, 0, Math.PI * 2);
+    ctx.stroke();
+    if (stage.done) {
+      ctx.beginPath();
+      ctx.moveTo(box.x + 19, y); ctx.lineTo(box.x + 21.5, y + 3); ctx.lineTo(box.x + 26, y - 3.5);
+      ctx.stroke();
+    } else if (active) {
+      ctx.fillStyle = HUD.amber;
+      ctx.beginPath();
+      ctx.arc(box.x + 22, y, 2.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    trackedText(ctx, `${index + 1} ${stage.title}`, box.x + 36, y, 10, colour, 1.3);
+    text(ctx, stage.done ? 'DONE' : active ? stage.goal : '', box.x + box.width - 14, y, 9.5,
+      active ? 'rgba(243,231,206,0.7)' : 'rgba(243,231,206,0.3)', 'right', 500);
+  }
+}
 
 function panel(ctx, x, y, width, height) {
   ctx.fillStyle = HUD.panel;
@@ -283,9 +511,12 @@ function drawMissionStrip(ctx, world) {
   ctx.fillRect(box.x, box.y, 5, box.height);
   trackedText(ctx, world.mission.name, box.x + 18, box.y + 18, 17, HUD.amber, 1.5);
   trackedText(ctx, world.mission.goal, box.x + 18, box.y + 39, 10, HUD.cream, 1.2);
-  text(ctx, formatClock(world.mission.timeLeft), box.x + 18, box.y + 61, 17, HUD.cream, 'left', 800);
-  text(ctx, `RING ${Math.min(world.mission.ringsPassed + 1, world.mission.rings.length)}/${world.mission.rings.length}  SCORE ${String(world.score).padStart(6, '0')}`,
-    box.x + box.width - 16, box.y + 61, 12, HUD.brass, 'right');
+  const stage = world.mission.stages[world.mission.stageIndex];
+  if (stage) {
+    text(ctx, `STAGE ${world.mission.stageIndex + 1}/${world.mission.stages.length}`, box.x + 18, box.y + 61, 10, HUD.brass, 'left', 600);
+  }
+  text(ctx, formatClock(world.mission.timeLeft), box.x + 112, box.y + 61, 17, HUD.cream, 'left', 800);
+  text(ctx, `SCORE ${String(world.score).padStart(6, '0')}`, box.x + box.width - 16, box.y + 61, 13, HUD.brass, 'right');
 }
 
 function drawReticle(ctx, state, world) {
@@ -299,8 +530,26 @@ function drawReticle(ctx, state, world) {
   ctx.moveTo(x, y - 18); ctx.lineTo(x, y - 7);
   ctx.moveTo(x, y + 7); ctx.lineTo(x, y + 18);
   ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,196,107,0.5)';
+  ctx.beginPath();
+  ctx.arc(x, y, 34, 0, Math.PI * 2);
+  ctx.stroke();
   ctx.fillStyle = HUD.amber;
   ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
+
+  const combat = world.combat;
+  if (combat?.markFlash > 0) {
+    ctx.strokeStyle = HUD.cream;
+    ctx.lineWidth = 3;
+    const s = 13;
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(x + sx * s, y + sy * s * 0.35);
+      ctx.lineTo(x + sx * s * 0.35, y + sy * s * 0.35);
+      ctx.lineTo(x + sx * s * 0.35, y + sy * s);
+      ctx.stroke();
+    }
+  }
 
   if (state.stall && Math.floor(world.clock * 5) % 2 === 0) {
     ctx.fillStyle = 'rgba(80,18,18,0.72)';
@@ -312,17 +561,81 @@ function drawReticle(ctx, state, world) {
   }
 }
 
-function drawFlightStatus(ctx, state) {
-  const x = DESIGN.width / 2;
-  const y = DESIGN.height - 24;
-  const label = `THR ${Math.round(state.throttle * 100)}%  ·  GEAR ${state.gearDown ? 'DOWN' : 'UP'}  ·  FUEL ${Math.round(state.fuel)}%`;
-  ctx.font = `700 11px ${FONT.ui}`;
-  const width = ctx.measureText(label).width + 28;
-  panel(ctx, x - width / 2, y - 15, width, 28);
-  trackedText(ctx, label, x, y - 1, 10, HUD.cream, 1.1, 'center');
+function drawToasts(ctx, world) {
+  const mission = world.mission;
+  const age = mission.elapsed - mission.toastTime;
+  if (mission.toast && age < 2.1) {
+    const alpha = clamp(1 - (age - 1.4) / 0.7, 0, 1);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    const width = 470;
+    ctx.fillStyle = 'rgba(12,35,41,0.82)';
+    ctx.strokeStyle = HUD.amber;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(DESIGN.width / 2 - width / 2, 320, width, 46, 4);
+    ctx.fill();
+    ctx.stroke();
+    trackedText(ctx, mission.toast, DESIGN.width / 2, 343, 19, HUD.amber, 3.4, 'center');
+    ctx.restore();
+  }
+  if (world.lastKill && world.clock - world.lastKill.time < 2.4) {
+    const alpha = clamp(1 - (world.clock - world.lastKill.time - 1.6) / 0.8, 0, 1);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    trackedText(ctx, world.lastKill.labels[world.lastKill.kind], DESIGN.width / 2, 392, 15, HUD.cream, 3, 'center');
+    ctx.restore();
+  }
 }
 
-export function drawHud(ctx, state, world, w, h, cameraMode = 'chase', rings = [], camera = null) {
+function drawDamageVignette(ctx, state, combat) {
+  const damage = state.damage / 100;
+  const flash = combat ? clamp(combat.hitFlash / COMBAT.hitFlash, 0, 1) : 0;
+  const strength = clamp(Math.max(flash, (damage - 0.55) * 1.4), 0, 1);
+  if (strength <= 0.01) return;
+  const gradient = ctx.createRadialGradient(DESIGN.width / 2, DESIGN.height / 2, 260,
+    DESIGN.width / 2, DESIGN.height / 2, 760);
+  gradient.addColorStop(0, 'rgba(150,26,20,0)');
+  gradient.addColorStop(1, `rgba(150,26,20,${0.62 * strength})`);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, DESIGN.width, DESIGN.height);
+}
+
+function drawTouchControls(ctx, input, dpr) {
+  if (!input || !input.touch) return;
+  ctx.save();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const zones = layoutTouchControls(window.innerWidth, window.innerHeight);
+  const drawZone = (zone, label, active, colour) => {
+    ctx.globalAlpha = active ? 0.86 : 0.5;
+    ctx.fillStyle = active ? colour : 'rgba(12,35,41,0.72)';
+    ctx.strokeStyle = 'rgba(243,231,206,0.7)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(zone.x, zone.y, zone.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = active ? '#102F38' : 'rgba(243,231,206,0.86)';
+    ctx.font = `700 ${Math.round(zone.r * 0.42)}px "Barlow Condensed", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, zone.x, zone.y);
+  };
+  drawZone(zones.fire, 'FIRE', Boolean(input.fire), '#FFC46B');
+  drawZone(zones.rocket, 'RKT', false, '#FFC46B');
+  drawZone(zones.flare, 'FLR', false, '#FFC46B');
+  drawZone(zones.evade, 'ROLL', false, '#FFC46B');
+  drawZone(zones.throttleUp, '+', false, '#FFC46B');
+  drawZone(zones.throttleDown, '−', false, '#FFC46B');
+  ctx.globalAlpha = 0.42;
+  ctx.strokeStyle = 'rgba(243,231,206,0.8)';
+  ctx.beginPath();
+  ctx.arc(zones.stick.x, zones.stick.y, zones.stick.r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+export function drawHud(ctx, state, world, w, h, cameraMode = 'chase', rings = [], camera = null, input = null) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, w, h);
   const scale = Math.min(w / DESIGN.width, h / DESIGN.height);
@@ -334,17 +647,65 @@ export function drawHud(ctx, state, world, w, h, cameraMode = 'chase', rings = [
 
   drawHeading(ctx, state.heading);
   drawMissionStrip(ctx, world);
+  drawStageBoard(ctx, world);
   drawReticle(ctx, state, world);
   if (cameraMode === 'cockpit') {
     drawCockpitPanel(ctx, state);
+    drawWeapons(ctx, state, world, 24, 686, 300, 96);
   } else {
-    drawSpeedTape(ctx, state.speed * 1.94384);
+    drawSpeedTape(ctx, state.speed * 1.94386);
     drawAltitudeTape(ctx, state.position.y, state.verticalSpeed);
-    drawFlightStatus(ctx, state);
     drawRoundInstruments(ctx, state);
+    drawWeapons(ctx, state, world, 306, 686, 300, 96);
   }
+  drawRadar(ctx, state, world.forces, { x: 6200, z: -1200 });
   drawTargetDiamond(ctx, state, rings[world.mission.activeRing] ?? null, camera);
+  if (world.combat) {
+    drawThreatMarks(ctx, state, world.forces, camera, world.combat.lockTarget);
+    drawLockBox(ctx, state, world.combat.lockTarget, world.combat, camera);
+    drawDamageVignette(ctx, state, world.combat);
+  }
+  drawToasts(ctx, world);
   if (world.mission.warning && Math.floor(world.clock * 4) % 2 === 0) {
     trackedText(ctx, world.mission.warning, DESIGN.width / 2, DESIGN.height / 2 - 82, 19, HUD.red, 3, 'center');
   }
+  drawTouchControls(ctx, input, h > 0 ? w / Math.max(1, window.innerWidth) : 1);
+}
+
+/** Project the active target and draw a diamond, distance and off-screen bearing. */
+export function drawTargetDiamond(ctx, state, target, camera = null) {
+  if (!target || !camera) return;
+  const position = new THREE.Vector3(target.position.x, target.position.y, target.position.z);
+  position.project(camera);
+  const onScreen = position.z >= -1 && position.z <= 1;
+  let x = (position.x * 0.5 + 0.5) * DESIGN.width;
+  let y = (-position.y * 0.5 + 0.5) * DESIGN.height;
+  const distance = Math.round(Math.hypot(
+    target.position.x - state.position.x,
+    target.position.y - state.position.y,
+    target.position.z - state.position.z,
+  ));
+  if (!onScreen || x < 90 || x > DESIGN.width - 90 || y < 90 || y > DESIGN.height - 110) {
+    const bearing = Math.atan2(target.position.x - state.position.x, -(target.position.z - state.position.z)) * 180 / Math.PI;
+    const relative = ((bearing - state.heading + 540) % 360) - 180;
+    x = DESIGN.width / 2 + relative * 2.6;
+    x = Math.max(96, Math.min(DESIGN.width - 96, x));
+    y = 250;
+    ctx.strokeStyle = HUD.amber;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x - 9, y + 11); ctx.lineTo(x, y - 5); ctx.lineTo(x + 9, y + 11);
+    ctx.stroke();
+    text(ctx, `${Math.round(Math.abs(relative))}°`, x, y + 24, 12, HUD.amber, 'center');
+    text(ctx, `GATE ${distance} M`, x, y + 40, 10, HUD.cream, 'center');
+    return;
+  }
+
+  ctx.strokeStyle = HUD.amber;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(x, y - 22); ctx.lineTo(x + 22, y); ctx.lineTo(x, y + 22); ctx.lineTo(x - 22, y);
+  ctx.closePath();
+  ctx.stroke();
+  text(ctx, `${distance} M`, x, y + 37, 12, HUD.cream, 'center');
 }
