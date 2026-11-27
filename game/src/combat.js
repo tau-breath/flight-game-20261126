@@ -76,7 +76,7 @@ function writeTracers(field, bullets) {
     if (!sprite) break;
     sprite.visible = true;
     sprite.position.set(bullet.x, bullet.y, bullet.z);
-    sprite.scale.set(2.2, 7.0, 1);
+    sprite.scale.set(1.1, 3.6, 1);
     used += 1;
   }
   for (let index = used; index < field.count; index += 1) field.pool[index].visible = false;
@@ -433,9 +433,12 @@ export function stepCombat(combat, world, forces, input, dt) {
     combat.cooldown = 1 / COMBAT.gunRate;
     combat.ammo = Math.max(0, combat.ammo - 2);
     combat.shots += 2;
-    spawnPlayerBullet(combat, state, -1);
-    spawnPlayerBullet(combat, state, 1);
-    world.events.push({ type: 'gun', x: state.position.x, y: state.position.y, z: state.position.z, scale: 1 });
+    for (const side of [-1, 1]) {
+      spawnPlayerBullet(combat, state, side);
+      scratchPosition.set(COMBAT.muzzleLeft * side, COMBAT.muzzleUp, COMBAT.muzzleForward - 0.3)
+        .applyQuaternion(state.quaternion).add(state.position);
+      world.events.push({ type: 'gun', x: scratchPosition.x, y: scratchPosition.y, z: scratchPosition.z, scale: 1 });
+    }
   }
 
   stepBullets(combat, world, forces, dt);
