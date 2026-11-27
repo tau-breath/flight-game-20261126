@@ -50,61 +50,37 @@ function tracerTexture() {
   return tracerTextureCache;
 }
 
-function createTracerField(scene, count, colour) {
-  // One instanced quad per round: a short streak stretched along its own flight path and turned to
-  // face the eye, so a tracer reads at any angle instead of collapsing to a dot when it flies away.
-  const geometry = new THREE.PlaneGeometry(1, 1);
-  const material = new THREE.MeshBasicMaterial({
-    color: colour, map: tracerTexture(), transparent: true, opacity: 1, depthWrite: false,
-    side: THREE.DoubleSide,
+function createTracerField(scene, count, colour, size) {
+  // One Points cloud per side: every round is a camera-facing glow, so a stream fired straight
+  // away reads as a chain of rounds instead of vanishing into the vanishing point.
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+  geometry.setDrawRange(0, 0);
+  const material = new THREE.PointsMaterial({
+    color: colour, map: tracerTexture(), size, sizeAttenuation: true, transparent: true,
+    opacity: 1, depthWrite: false, alphaTest: 0.02,
   });
-  const mesh = new THREE.InstancedMesh(geometry, material, count);
-  mesh.frustumCulled = false;
-  mesh.count = 0;
-  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  mesh.renderOrder = 6;
-  scene.add(mesh);
-  const matrix = new THREE.Matrix4();
-  const basis = new THREE.Matrix4();
-  const right = new THREE.Vector3();
-  const up = new THREE.Vector3();
-  const direction = new THREE.Vector3();
-  const toEye = new THREE.Vector3();
-  const scale = new THREE.Vector3();
-  return { mesh, matrix, basis, right, up, direction, toEye, scale, count };
+  const points = new THREE.Points(geometry, material);
+  points.frustumCulled = false;
+  points.renderOrder = 6;
+  scene.add(points);
+  return { points, geometry, positions: geometry.attributes.position, count };
 }
 
-function writeTracers(field, bullets, length, eye, width) {
+function writeTracers(field, bullets) {
+  const positions = field.positions.array;
   let used = 0;
   for (let index = 0; index < bullets.length; index += 1) {
     const bullet = bullets[index];
     if (!bullet.active) continue;
-    field.direction.set(bullet.vx, bullet.vy, bullet.vz);
-    const speed = field.direction.length() || 1;
-    field.direction.divideScalar(speed);
-    field.toEye.set(eye.x - bullet.x, eye.y - bullet.y, eye.z - bullet.z);
-    if (field.toEye.lengthSq() < 1e-6) field.toEye.set(0, 1, 0);
-    field.toEye.normalize();
-    // The quad always faces the eye; its long axis follows the part of the flight path the eye can
-    // actually see. A round fired straight away therefore reads as a dash, not as a disappearing dot.
-    field.up.copy(field.direction).addScaledVector(field.toEye, -field.direction.dot(field.toEye));
-    if (field.up.lengthSq() < 0.02) {
-      field.up.set(0, 1, 0).addScaledVector(field.toEye, -field.toEye.y);
-      if (field.up.lengthSq() < 0.02) field.up.set(1, 0, 0).addScaledVector(field.toEye, -field.toEye.x);
-    }
-    field.up.normalize();
-    field.right.crossVectors(field.up, field.toEye).normalize();
-    field.basis.makeBasis(field.right, field.up, field.toEye);
-    field.matrix.copy(field.basis);
-    field.scale.set(width, length, 1);
-    field.matrix.scale(field.scale);
-    field.matrix.setPosition(bullet.x, bullet.y, bullet.z);
-    field.mesh.setMatrixAt(used, field.matrix);
+    positions[used * 3] = bullet.x;
+    positions[used * 3 + 1] = bullet.y;
+    positions[used * 3 + 2] = bullet.z;
     used += 1;
     if (used >= field.count) break;
   }
-  field.mesh.count = used;
-  field.mesh.instanceMatrix.needsUpdate = true;
+  field.geometry.setDrawRange(0, used);
+  field.positions.needsUpdate = true;
 }
 
 function createMissileMesh(scene, index) {
@@ -165,8 +141,8 @@ export function glowTexture() {
 }
 
 export function createCombat(scene) {
-  const playerTracers = createTracerField(scene, PLAYER_BULLETS, '#FF9E1F');
-  const enemyTracers = createTracerField(scene, ENEMY_BULLETS, '#FF3B2E');
+  const playerTracers = createTracerField(scene, PLAYER_BULLETS, '#FFB43A', 2.4);
+  const enemyTracers = createTracerField(scene, ENEMY_BULLETS, '#FF5A38', 2.2);
   const playerBullets = [];
   const enemyBullets = [];
   for (let index = 0; index < PLAYER_BULLETS; index += 1) {
@@ -466,8 +442,8 @@ export function stepCombat(combat, world, forces, input, dt) {
   stepBullets(combat, world, forces, dt);
   stepMissiles(combat, world, dt);
 
-  writeTracers(combat.playerTracers, combat.playerBullets, 5.2, state.position, 1.1);
-  writeTracers(combat.enemyTracers, combat.enemyBullets, 4.4, state.position, 1.0);
+  writeTracers(combat.playerTracers, combat.playerBullets);
+  writeTracers(combat.enemyTracers, combat.enemyBullets);
 }
 
 /** Fired from the flow when the player presses the rocket key. */
@@ -503,6 +479,6 @@ export function resetCombat(combat) {
   combat.damageTaken = 0;
   combat.combo = 1;
   combat.comboTimer = 0;
-  writeTracers(combat.playerTracers, combat.playerBullets, 0, { x: 0, y: 0, z: 0 }, 0);
-  writeTracers(combat.enemyTracers, combat.enemyBullets, 0, { x: 0, y: 0, z: 0 }, 0);
+  writeTracers(combat.playerTracers, combat.playerBullets);
+  writeTracers(combat.enemyTracers, combat.enemyBullets);
 }
