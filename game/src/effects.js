@@ -208,8 +208,8 @@ function emitDamageSmoke(effects, state) {
 function spawnMuzzle(effects, x, y, z, scale) {
   const particle = takeParticle(effects.muzzle);
   particle.age = 0;
-  particle.life = 0.075;
-  particle.size = 0.9 * scale;
+  particle.life = 0.1;
+  particle.size = 1.5 * scale;
   particle.growth = 5.5;
   particle.sprite.position.set(x, y, z);
   particle.vx = 0; particle.vy = 0; particle.vz = 0;
@@ -341,7 +341,7 @@ function spawnBlast(effects, x, y, z, scale) {
     blast.active = true;
     blast.age = 0;
     blast.life = 0.95;
-    blast.size = 6 * scale;
+    blast.size = 9 * scale;
     blast.mesh.position.set(x, y, z);
     blast.mesh.scale.setScalar(blast.size * 0.25);
     blast.mesh.material.opacity = 1;
@@ -572,7 +572,7 @@ export function resetEffects(effects) {
 export function emitEffect(effects, event) {
   const scale = event.scale || 1;
   switch (event.type) {
-    case 'gun': spawnMuzzle(effects, event.x, event.y, event.z, scale * 1.1); break;
+    case 'gun': spawnMuzzle(effects, event.x, event.y, event.z, scale * 1.2); break;
     case 'enemy-gun': spawnMuzzle(effects, event.x, event.y, event.z, scale); break;
     case 'impact': spawnImpact(effects, event.x, event.y, event.z, scale); break;
     case 'explosion': spawnBlast(effects, event.x, event.y, event.z, scale); break;
