@@ -130,7 +130,7 @@ function stageGuns(world, systems) {
 
 function stageMissile(world, systems) {
   world.startMission(MB_STRIKE);
-  world.reset([5250, 74, -570], 210, 84);
+  world.reset([5230, 98, -840], 202, 84);
   const mission = world.mission;
   mission.stages[0].done = true;
   mission.stages[1].done = true;
@@ -155,8 +155,8 @@ function stageMissile(world, systems) {
   if (gunboat) gunboat.hp = 26;
   forceLock(systems.combat, gunboat);
   fireRocket(systems.combat, world);
-  advance(systems, 1.6, stick(false, 0.01, -0.02));
-  advance(systems, 0.16, stick(false, 0.01, -0.02));
+  advance(systems, 1.75, stick(false, 0.01, -0.02));
+  advance(systems, 0.18, stick(false, 0.01, -0.02));
   forceLock(systems.combat, gunboat);
   return { screen: 'FLYING', cameraMode: 'chase', ringIndex: 2, mission };
 }

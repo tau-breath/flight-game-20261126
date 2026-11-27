@@ -69,6 +69,57 @@ export function drawRoundInstruments(ctx, state) {
   gauge(ctx, layout.centres[2], layout.y, layout.radius, 'ALTITUDE', `${Math.round(state.position.y)} M`, state, 'altitude');
 }
 
+/** The canopy frame and the ring sight, drawn over the world in the cockpit view. */
+function drawCanopyFrame(ctx) {
+  const width = DESIGN.width;
+  const height = DESIGN.height;
+  ctx.save();
+  const glass = ctx.createLinearGradient(0, 380, 0, 470);
+  glass.addColorStop(0, 'rgba(20,48,54,0)');
+  glass.addColorStop(1, 'rgba(16,40,46,0.92)');
+  ctx.fillStyle = glass;
+  ctx.fillRect(0, 380, width, 90);
+  ctx.fillStyle = 'rgba(14,38,44,0.97)';
+  ctx.beginPath();
+  ctx.moveTo(0, height);
+  ctx.lineTo(0, 470);
+  ctx.lineTo(212, 470);
+  ctx.quadraticCurveTo(300, 620, 330, height);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(width, height);
+  ctx.lineTo(width, 470);
+  ctx.lineTo(width - 212, 470);
+  ctx.quadraticCurveTo(width - 300, 620, width - 330, height);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(198,154,82,0.85)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(212, 470);
+  ctx.quadraticCurveTo(300, 620, 330, height);
+  ctx.moveTo(width - 212, 470);
+  ctx.quadraticCurveTo(width - 300, 620, width - 330, height);
+  ctx.moveTo(0, 470);
+  ctx.lineTo(212, 470);
+  ctx.moveTo(width, 470);
+  ctx.lineTo(width - 212, 470);
+  ctx.stroke();
+
+  // Ring and bead sight on the nose centreline.
+  ctx.strokeStyle = 'rgba(243,231,206,0.5)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(DESIGN.width / 2, 400, 62, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(198,154,82,0.7)';
+  ctx.beginPath();
+  ctx.arc(DESIGN.width / 2, 400, 4, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawCockpitPanel(ctx, state) {
   ctx.fillStyle = 'rgba(8,25,30,0.94)';
   ctx.strokeStyle = HUD.brass;
@@ -662,6 +713,7 @@ export function drawHud(ctx, state, world, w, h, cameraMode = 'chase', rings = [
   drawStageBoard(ctx, world);
   drawReticle(ctx, state, world);
   if (cameraMode === 'cockpit') {
+    drawCanopyFrame(ctx);
     drawCockpitPanel(ctx, state);
     drawWeapons(ctx, state, world, 24, 686, 300, 96);
   } else {

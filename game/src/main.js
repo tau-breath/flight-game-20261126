@@ -211,8 +211,9 @@ function renderFrame(dt) {
   sky.update(dt);
   terrain.update(world.clock);
   updateCamera(cameraRig, world.state, dt, cameraMode);
-  aircraft.canopy.visible = cameraMode !== 'cockpit';
-  aircraft.canopyFrame.visible = cameraMode !== 'cockpit';
+  // In the cockpit the pilot's own airframe would fill the view with its shadow side, so the model
+  // is hidden and the HUD draws the canopy frame and the gunsight instead.
+  aircraft.root.visible = cameraMode !== 'cockpit';
   sky.dome.position.copy(camera.position);
   sky.sun.position.copy(camera.position).addScaledVector(sky.sunDirection, 8200);
   if (sunGlow) sunGlow.position.copy(camera.position).addScaledVector(sky.sunDirection, 8100);
