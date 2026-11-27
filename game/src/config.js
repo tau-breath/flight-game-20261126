@@ -35,7 +35,7 @@ function THREE_DEG(value) { return value * Math.PI / 180; }
 export const AIRCRAFT = Object.freeze({
   name: 'Kestrel Mk.I', fuselageLength: 8.4, noseRadius: 0.55, tailRadius: 0.18,
   wingSpan: 11, wingChord: 1.75, wingDihedral: THREE_DEG(1.5), propRadius: 1.25,
-  gearHeight: 1.25, eyeHeight: 1.02, eyeForward: 1.95,
+  gearHeight: 1.25, eyeHeight: 1.16, eyeForward: 0.35,
 });
 
 export const AIRFIELD = Object.freeze({
@@ -64,7 +64,7 @@ export const SKY = Object.freeze({
 
 export const CAMERA = Object.freeze({
   chaseBack: 15, chaseUp: 4.2, lookAhead: 18.2, lookUp: 2.4,
-  chaseFov: 60, speedFov: 72, cockpitFov: 68, cockpitLookAhead: 60, cockpitLookDown: 9.5, cockpitEyeSide: -0.42, stiffness: 8, bankRoll: 0.35,
+  chaseFov: 60, speedFov: 72, cockpitFov: 66, cockpitLookAhead: 60, cockpitLookDown: 5.5, cockpitEyeSide: -0.16, stiffness: 8, bankRoll: 0.35,
   stallShake: 0.11, near: 0.15, far: 9200,
 });
 
@@ -100,13 +100,13 @@ export const MISSIONS = Object.freeze([
     id: 'strike', kind: 'strike', name: 'STRIKE RUN', goal: 'Intercept, then silence the flotilla',
     timeLimit: 250, time: 250,
     route: Object.freeze([
-      Object.freeze({ x: 4900, y: 178, z: -1480, heading: 142 }),
-      Object.freeze({ x: 5380, y: 162, z: -860, heading: 140 }),
-      Object.freeze({ x: 5820, y: 150, z: -250, heading: 146 }),
-      Object.freeze({ x: 6380, y: 196, z: 380, heading: 152 }),
+      Object.freeze({ x: 5300, y: 215, z: -1120, heading: 202 }),
+      Object.freeze({ x: 5080, y: 195, z: -520, heading: 206 }),
+      Object.freeze({ x: 4900, y: 245, z: 160, heading: 210 }),
+      Object.freeze({ x: 4740, y: 430, z: 980, heading: 216 }),
     ]),
     waypoints: Object.freeze([]),
-    start: Object.freeze({ x: 4360, y: 286, z: -2100, heading: 142 }),
+    start: Object.freeze({ x: 5560, y: 300, z: -1820, heading: 200 }),
     stages: Object.freeze([
       Object.freeze({ id: 'run-in', kind: 'rings', title: 'RUN-IN', goal: 'Thread three coastal gates', rings: 3 }),
       Object.freeze({ id: 'intercept', kind: 'destroy', title: 'INTERCEPT', goal: 'Splash the raider pair', targets: Object.freeze(['raider-1', 'raider-2']) }),
@@ -115,13 +115,13 @@ export const MISSIONS = Object.freeze([
     ]),
     waves: Object.freeze([
       Object.freeze({ id: 'raiders', at: 1, units: Object.freeze([
-        Object.freeze({ id: 'raider-1', kind: 'fighter', x: 5560, y: 214, z: -760, heading: 318, speed: 100, ace: true }),
-        Object.freeze({ id: 'raider-2', kind: 'fighter', x: 5790, y: 176, z: -640, heading: 330, speed: 92, ace: false }),
+        Object.freeze({ id: 'raider-1', kind: 'fighter', x: 5120, y: 226, z: -830, heading: 22, speed: 100, ace: true }),
+        Object.freeze({ id: 'raider-2', kind: 'fighter', x: 5330, y: 196, z: -650, heading: 30, speed: 92, ace: false }),
       ]) }),
       Object.freeze({ id: 'flotilla', at: 2, units: Object.freeze([
-        Object.freeze({ id: 'gunboat-1', kind: 'gunboat', x: 6180, y: 0, z: -140, heading: 118, speed: 4.5 }),
-        Object.freeze({ id: 'flak-1', kind: 'flak', x: 5680, y: 0, z: -520, heading: 90, speed: 0 }),
-        Object.freeze({ id: 'flak-2', kind: 'flak', x: 5980, y: 0, z: 130, heading: 90, speed: 0 }),
+        Object.freeze({ id: 'gunboat-1', kind: 'gunboat', x: 5150, y: 0, z: -230, heading: 118, speed: 4.5 }),
+        Object.freeze({ id: 'flak-1', kind: 'flak', x: 5000, y: 0, z: -560, heading: 90, speed: 0 }),
+        Object.freeze({ id: 'flak-2', kind: 'flak', x: 5360, y: 0, z: -150, heading: 90, speed: 0 }),
       ]) }),
     ]),
   }),

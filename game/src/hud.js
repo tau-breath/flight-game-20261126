@@ -285,33 +285,32 @@ export function drawWeapons(ctx, state, world, x, y, width, height) {
   ctx.fillRect(barX, y + 31, barW * 0.55 * ammoFraction, 9);
   text(ctx, String(combat.ammo).padStart(4, '0'), x + width - 12, y + 36, 10, HUD.cream, 'right');
 
-  const pipX = x + 16;
-  trackedText(ctx, 'RKT', pipX, y + 58, 9, HUD.cream, 1.6);
+  trackedText(ctx, 'RKT', x + 16, y + 58, 9, HUD.cream, 1.6);
   for (let index = 0; index < COMBAT.missileCount; index += 1) {
     ctx.fillStyle = index < combat.missilesLeft ? HUD.amber : 'rgba(243,231,206,0.18)';
     ctx.beginPath();
-    ctx.moveTo(x + 58 + index * 15, y + 53);
-    ctx.lineTo(x + 64 + index * 15, y + 63);
-    ctx.lineTo(x + 58 + index * 15, y + 63);
+    ctx.moveTo(x + 54 + index * 14, y + 53);
+    ctx.lineTo(x + 60 + index * 14, y + 63);
+    ctx.lineTo(x + 54 + index * 14, y + 63);
     ctx.closePath();
     ctx.fill();
   }
-  trackedText(ctx, 'FLR', x + 150, y + 58, 9, HUD.cream, 1.6);
+  trackedText(ctx, 'FLR', x + 122, y + 58, 9, HUD.cream, 1.6);
   for (let index = 0; index < COMBAT.flareCount; index += 1) {
     ctx.fillStyle = index < combat.flares ? '#FFD08A' : 'rgba(243,231,206,0.18)';
     ctx.beginPath();
-    ctx.arc(x + 190 + index * 12, y + 58, 3.6, 0, Math.PI * 2);
+    ctx.arc(x + 162 + index * 11, y + 58, 3.4, 0, Math.PI * 2);
     ctx.fill();
   }
-  text(ctx, `THR ${Math.round(state.throttle * 100)}%  FUEL ${Math.round(state.fuel)}%  ${state.gearDown ? 'GEAR DOWN' : 'GEAR UP'}`,
+  text(ctx, `THR ${Math.round(state.throttle * 100)} · FUEL ${Math.round(state.fuel)}`,
     x + width - 12, y + 58, 9.5, 'rgba(243,231,206,0.78)', 'right', 500);
 
   const statusY = y + 78;
   trackedText(ctx, state.evadeTimer > 0 ? 'BARREL ROLL' : state.flareTimer > 0 ? 'FLARES OUT' : combat.fireHeld ? 'GUNS FIRING' : 'GUNS SAFE',
     x + 16, statusY, 10, state.evadeTimer > 0 || state.flareTimer > 0 ? HUD.amber : 'rgba(243,231,206,0.6)', 1.4);
   const accuracy = combat.shots > 0 ? Math.round(combat.hits / combat.shots * 100) : 0;
-  text(ctx, `HITS ${combat.hits}  ·  ACC ${accuracy}%  ·  KILLS ${combat.kills}`,
-    x + width - 12, statusY, 9.5, 'rgba(243,231,206,0.66)', 'right', 500);
+  text(ctx, `${state.gearDown ? 'GEAR DOWN' : 'GEAR UP'} · ACC ${accuracy}% · KILLS ${combat.kills}`,
+    x + width - 12, statusY, 9, 'rgba(243,231,206,0.66)', 'right', 500);
 }
 
 /** The stage board: one row per task, struck through as it is finished. */
@@ -569,7 +568,7 @@ function drawToasts(ctx, world) {
     ctx.save();
     ctx.globalAlpha = alpha;
     const width = 470;
-    ctx.fillStyle = 'rgba(12,35,41,0.82)';
+    ctx.fillStyle = 'rgba(12,35,41,0.9)';
     ctx.strokeStyle = HUD.amber;
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -583,7 +582,15 @@ function drawToasts(ctx, world) {
     const alpha = clamp(1 - (world.clock - world.lastKill.time - 1.6) / 0.8, 0, 1);
     ctx.save();
     ctx.globalAlpha = alpha;
-    trackedText(ctx, world.lastKill.labels[world.lastKill.kind], DESIGN.width / 2, 392, 15, HUD.cream, 3, 'center');
+    const width = 360;
+    ctx.fillStyle = 'rgba(12,35,41,0.86)';
+    ctx.strokeStyle = HUD.cream;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(DESIGN.width / 2 - width / 2, 378, width, 32, 3);
+    ctx.fill();
+    ctx.stroke();
+    trackedText(ctx, world.lastKill.labels[world.lastKill.kind], DESIGN.width / 2, 394, 14, HUD.cream, 2.8, 'center');
     ctx.restore();
   }
 }
