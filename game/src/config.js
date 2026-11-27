@@ -13,10 +13,10 @@ export const BEST_KEY = 'windward.coast-patrol.best';
 export const PALETTE = Object.freeze({
   ink: '#102F38', panel: '#10282E', panelSoft: '#173B42', cream: '#F3E7CE',
   brass: '#C69A52', amber: '#FFC46B', red: '#E2564A', teal: '#2E7E78',
-  sea: '#2F7C86', seaLight: '#76B4B2', foam: '#EAF3F2', sand: '#D9C79A',
-  grass: '#7C9959', dryGrass: '#A9B071', rock: '#8A7A63', darkRock: '#6B5E4B',
-  snow: '#F2F0EA', skyZenith: '#2E6FB0', skyMid: '#7FB2D8', skyHorizon: '#F6D7A8',
-  sun: '#FFF3D0', fog: '#DCE9EF', runway: '#3A3F42', creamLine: '#EFE6D2',
+  sea: '#1F6C7C', seaLight: '#76B4B2', foam: '#EAF3F2', sand: '#D9C79A',
+  grass: '#7C9A4F', dryGrass: '#A9B071', rock: '#8A7A63', darkRock: '#6B5E4B',
+  snow: '#F2F0EA', skyZenith: '#1F5FA8', skyMid: '#6FA8D6', skyHorizon: '#F8D2A0',
+  sun: '#FFF3D0', fog: '#EADCC4', runway: '#3A3F42', creamLine: '#EFE6D2',
   roof: '#A85F43', glass: '#80B8BD', wood: '#66503B', leather: '#594333',
 });
 
@@ -47,7 +47,7 @@ export const AIRFIELD = Object.freeze({
 
 export const TERRAIN = Object.freeze({
   size: 12000, segments: 144, seed: 1729, octaves: 4, frequency: 0.00031,
-  maxHeight: 780, airfieldHeight: AIRFIELD.elevation, plateauRadiusX: 570, plateauRadiusZ: 155,
+  maxHeight: 780, airfieldHeight: AIRFIELD.elevation, plateauRadiusX: 980, plateauRadiusZ: 540,
   heightStep: 8, coastFoamSamples: 144,
 });
 
@@ -59,7 +59,7 @@ export const SKY = Object.freeze({
   radius: 9000, sunElevation: THREE_DEG(20), sunAzimuth: THREE_DEG(112),
   sunDiscSize: 470, glowSize: 1900, cloudCount: 22, cloudMinHeight: 700,
   cloudMaxHeight: 1300, cloudMinScale: 420, cloudMaxScale: 900,
-  cloudDrift: 2.2, fogNear: 1500, fogFar: 9000,
+  cloudDrift: 2.2, fogNear: 2800, fogFar: 13000,
 });
 
 export const CAMERA = Object.freeze({

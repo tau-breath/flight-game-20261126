@@ -7,6 +7,7 @@ import { AIRFIELD, COMBAT, STEP } from './config.js';
 import { clamp } from './mathutil.js';
 import { sampleTerrainHeight } from './terrain.js';
 import { fireRocket } from './combat.js';
+const CAMERA_DEFAULT = Object.freeze({ shotBack: 0, shotUp: 0, shotSide: 0, shotFov: 0 });
 
 const MB_STRIKE = 0;
 const MB_RIDGE = 1;
@@ -91,25 +92,33 @@ function prepareStrike(world, position, heading, speed) {
   return mission;
 }
 
+function strikeCamera() {
+  return { shotBack: 8, shotUp: 1.6, shotSide: 1.4, shotFov: 66 };
+}
+
 function stageStrike(world, systems) {
-  const mission = prepareStrike(world, [5500, 262, -1340], 200, 80);
+  const mission = prepareStrike(world, [5500, 302, -1340], 200, 80);
   mission.ringsPassed = 0;
   mission.activeRing = 0;
   mission.stageIndex = 0;
   mission.stages[0].done = false;
   mission.goal = mission.stages[0].goal;
   world.state.throttle = 0.82;
-  advance(systems, 0.32, stick(true, 0.02, 0.03));
-  advance(systems, 0.22, stick(true, 0.02, 0.02));
+  advance(systems, 0.48, stick(true, -0.34, 0.15));
   const lead = systems.forces.byId.get('raider-1');
   const wing = systems.forces.byId.get('raider-2');
   hold(lead, 0.9);
   hold(wing, 0.35);
-  if (lead) placeCrossing(lead, world.state, 52, 10, 3.0, 126, -44);
-  if (wing) placeCrossing(wing, world.state, 148, -16, 4.6, -138, 32);
-  advance(systems, 0.05, stick(true, 0.02, 0.02));
+  const ring = mission.rings[0];
+  const ringAhead = offsetPoint(world.state, 180, 0, 0);
+  ring.x = ringAhead.x;
+  ring.y = ringAhead.y;
+  ring.z = ringAhead.z;
+  placeCrossing(lead, world.state, 190, 8, 4.5, 126, -44);
+  placeCrossing(wing, world.state, 195, -8, 5.5, -138, 32);
+  advance(systems, 0.05, stick(true, 0, 0.15));
   forceLock(systems.combat, lead);
-  return { screen: 'FLYING', cameraMode: 'chase', ringIndex: 0, mission };
+  return { screen: 'FLYING', cameraMode: 'chase', ringIndex: 0, mission, camera: { ...strikeCamera(), shotUp: 2.6 } };
 }
 
 function stageGuns(world, systems) {
@@ -121,16 +130,16 @@ function stageGuns(world, systems) {
   const wing = systems.forces.byId.get('raider-2');
   hold(lead, 0.55);
   hold(wing, 0.3);
-  if (lead) placeCrossing(lead, world.state, 86, 6, 1.0, 148, -48);
-  if (wing) placeCrossing(wing, world.state, 190, -16, 4.6, -142, 28);
-  advance(systems, 0.05, stick(true, 0.02, 0));
+  placeCrossing(lead, world.state, 90, 3, 2, 148, -48);
+  placeCrossing(wing, world.state, 190, -16, 4.6, -142, 28);
+  advance(systems, 0.05, stick(true, 0, 0));
   forceLock(systems.combat, lead);
-  return { screen: 'FLYING', cameraMode: 'cockpit', ringIndex: 0, mission };
+  return { screen: 'FLYING', cameraMode: 'cockpit', ringIndex: 0, mission, camera: { ...CAMERA_DEFAULT } };
 }
 
 function stageMissile(world, systems) {
   world.startMission(MB_STRIKE);
-  world.reset([5230, 98, -840], 202, 84);
+  world.reset([5230, 41.3, -840], 202, 84);
   const mission = world.mission;
   mission.stages[0].done = true;
   mission.stages[1].done = true;
@@ -148,17 +157,23 @@ function stageMissile(world, systems) {
   world.state.damage = 18;
   world.onStageEnter?.(2);
   const gunboat = systems.forces.byId.get('gunboat-1');
-  const barge = systems.forces.byId.get('flak-2');
-  if (gunboat) gunboat.fireCd = 0.25;
-  if (barge) barge.fireCd = 0.45;
-  advance(systems, 0.45, stick(true, -0.03, -0.02));
-  if (gunboat) gunboat.hp = 26;
+  const bargeLeft = systems.forces.byId.get('flak-1');
+  const bargeRight = systems.forces.byId.get('flak-2');
+  const waterDrop = (distance) => -Math.atan2(world.state.position.y, distance) * 180 / Math.PI;
+  if (gunboat) {
+    gunboat.hp = 26;
+    gunboat.fireCd = 0.25;
+    placeCrossing(gunboat, world.state, 170, -5, waterDrop(170), 0, 0);
+  }
+  if (bargeLeft) placeCrossing(bargeLeft, world.state, 195, 12, waterDrop(195), -68, 0);
+  if (bargeRight) placeCrossing(bargeRight, world.state, 225, -16, waterDrop(225), -68, 0);
   forceLock(systems.combat, gunboat);
   fireRocket(systems.combat, world);
-  advance(systems, 1.75, stick(false, 0.01, -0.02));
-  advance(systems, 0.18, stick(false, 0.01, -0.02));
-  forceLock(systems.combat, gunboat);
-  return { screen: 'FLYING', cameraMode: 'chase', ringIndex: 0, mission };
+  advance(systems, 0.92, stick(false, 0, 0));
+  return {
+    screen: 'FLYING', cameraMode: 'chase', ringIndex: 0, mission, hideRings: true,
+    camera: { shotBack: 5.5, shotUp: 0.6, shotSide: -2.2, shotFov: 70 },
+  };
 }
 
 function stageRing(world, systems) {
@@ -179,7 +194,7 @@ function stageRing(world, systems) {
   world.mission.score = 240;
   world.score = 240;
   advance(systems, 0.1, stick(false));
-  return { screen: 'FLYING', cameraMode: 'chase', ringIndex: 2 };
+  return { screen: 'FLYING', cameraMode: 'chase', ringIndex: 2, camera: { ...CAMERA_DEFAULT } };
 }
 
 function stageMenu(world, systems) {
@@ -190,18 +205,21 @@ function stageMenu(world, systems) {
   world.state.gearDown = false;
   world.state.throttle = 0.62;
   advance(systems, 0.5, stick(false));
-  return { screen: 'MENU', cameraMode: 'chase', ringIndex: 0 };
+  return { screen: 'MENU', cameraMode: 'chase', ringIndex: 0, camera: { ...CAMERA_DEFAULT } };
 }
 
 function stageLanding(world, systems) {
   world.startMission(MB_HOME);
   world.mission.waypointIndex = 2;
-  world.reset([AIRFIELD.thresholdX + 150, AIRFIELD.elevation + 3.1, AIRFIELD.z], AIRFIELD.heading, 54);
+  world.reset([AIRFIELD.thresholdX - 55, AIRFIELD.elevation + 3.5, AIRFIELD.z], 90, 54);
   world.state.gearDown = true;
-  world.state.throttle = 0.18;
-  world.state.velocity.y = -1.1;
+  world.state.throttle = 0.2;
+  world.state.velocity.y = -0.8;
   systems.tick?.(STEP, levelAutopilot(world.state));
-  return { screen: 'FLYING', cameraMode: 'chase', ringIndex: -1 };
+  return {
+    screen: 'FLYING', cameraMode: 'chase', ringIndex: -1, hideRings: true,
+    camera: { shotBack: 7.5, shotUp: 0.9, shotSide: 1.1, shotFov: 58 },
+  };
 }
 
 export function stageShot(name, world, systems) {

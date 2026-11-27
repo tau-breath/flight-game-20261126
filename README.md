@@ -12,6 +12,23 @@ A 1930s-poster archipelago called the Cradle Coast: ochre cliffs, a long fjord, 
 clifftop airfield, flown in an open-cockpit monoplane, the **Kestrel Mk.I** — two cowl guns, four rockets
 and three flare pods against rust-liveried raiders and the flotilla they screen.
 
+## What the coast is made of
+
+- **Ground.** Meadow, scrub and dry-grass bands, ochre rock strata on the cliffs, wet sand at the
+  tideline and snow on the peaks, all from one seeded height field.
+- **Woodland and scree.** 2,100 instanced conifers, 1,300 gorse bushes and 450 boulders in three
+  instanced draw calls, with clearings around the airfield.
+- **Sea.** Four crossed wave trains with a fresnel sky blend, a sun-glitter lane, whitecaps on the
+  crests and a dithered colour. No textures, no network.
+- **Sky.** A painted dome, cumulus banks, high cirrus, a hazy island chain on the horizon and a
+  warm anamorphic sun streak.
+- **Kestrel.** Cowl guns, exhaust stacks, a brass-framed windscreen, tail number K-7, roundels and
+  weathering, all from primitives and canvas decals.
+- **Fight.** Smoke, embers and a shockwave ring on kills, a water column on splashes, flak puffs
+  and tracer from both sides.
+- **Screenshots.** Four real renders staged by the game's own deterministic shot player:
+  `?shot=strike|guns|missile|landing`.
+
 ## Fly it
 
 ```sh

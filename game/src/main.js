@@ -11,6 +11,7 @@ import {
 import { createWorld } from './world.js';
 import { createTerrain, sampleTerrainHeight } from './terrain.js';
 import { createSky } from './sky.js';
+import { createVegetation } from './vegetation.js';
 import { createAirfield, createLighthouse } from './landmarks.js';
 import { createRings, pickActiveRing, updateRings } from './rings.js';
 import { createAircraft, updateAircraft } from './aircraft.js';
@@ -46,6 +47,7 @@ const renderer = new THREE.WebGLRenderer({
 renderer.shadowMap.enabled = false;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.NoToneMapping;
+renderer.toneMappingExposure = 1.05;
 renderer.setClearColor('#7FB2D8', 1);
 
 const scene = new THREE.Scene();
@@ -54,6 +56,7 @@ const cameraRig = createCameraRig(camera);
 const world = createWorld(seed);
 const terrain = createTerrain(scene);
 const sky = createSky(scene, seed);
+const vegetation = createVegetation(scene);
 const sunGlow = scene.getObjectByName('Sun glow');
 const aircraft = createAircraft(scene);
 const effects = createEffects(scene);
@@ -65,9 +68,9 @@ const airfield = createAirfield(scene);
 const lighthouse = createLighthouse(scene);
 let rings = createRings(scene, world.mission);
 
-const hemisphere = new THREE.HemisphereLight('#D8ECF2', '#6D6247', 1.75);
+const hemisphere = new THREE.HemisphereLight('#D6ECF4', '#6A5E44', 1.15);
 scene.add(hemisphere);
-const sunlight = new THREE.DirectionalLight('#FFF0CF', 2.35);
+const sunlight = new THREE.DirectionalLight('#FFF0D2', 2.0);
 scene.add(sunlight);
 
 function rebuildRings() {
@@ -265,11 +268,13 @@ function runShot(name) {
   };
   const staged = stageShot(name, world, systems);
   rebuildRings();
+  if (staged.hideRings) rings.group.visible = false;
   if (staged.ringIndex >= 0) pickActiveRing(rings, staged.ringIndex);
   syncForces(forces);
   screen = staged.screen;
   cameraMode = staged.cameraMode;
   cameraRig.initialized = false;
+  if (staged.camera) Object.assign(cameraRig, staged.camera);
   // Compile shaders before the two measured paints so startup is not mistaken for frame rate.
   renderFrame(STEP);
   let previous = performance.now();

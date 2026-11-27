@@ -24,7 +24,51 @@ function particleTexture() {
   return texture;
 }
 
-function createPool(scene, count, colour, blending, map) {
+function ringTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const context = canvas.getContext('2d');
+  const gradient = context.createRadialGradient(64, 64, 50, 64, 64, 64);
+  gradient.addColorStop(0, 'rgba(255,255,255,0)');
+  gradient.addColorStop(0.55, 'rgba(255,255,255,0.12)');
+  gradient.addColorStop(0.72, 'rgba(255,255,255,0.95)');
+  gradient.addColorStop(0.84, 'rgba(255,255,255,0.42)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, 128, 128);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+// Project the ring's world X/Z axes so the sprite reads as a ground-hugging ellipse.
+function orientFlatRing(particle, sprite, camera) {
+  const matrix = camera.matrixWorldInverse.elements;
+  const ax = matrix[0];
+  const ay = matrix[1];
+  const bx = matrix[8];
+  const by = matrix[9];
+  const a = ax * ax + bx * bx;
+  const b = ay * ay + by * by;
+  const c = ax * ay + bx * by;
+  const delta = Math.sqrt(Math.max(0, (a - b) * (a - b) + 4 * c * c));
+  const major = Math.sqrt(Math.max(0, (a + b + delta) * 0.5));
+  const minor = Math.sqrt(Math.max(0, (a + b - delta) * 0.5));
+  const size = Math.max(0.02, particle.size + particle.growth * particle.age);
+  sprite.scale.set(size * major, size * Math.max(0.025, minor), 1);
+  sprite.material.rotation = Math.atan2(2 * c, a - b) * 0.5;
+}
+
+function orientMuzzle(particle, sprite, camera) {
+  if (particle.dx * particle.dx + particle.dy * particle.dy + particle.dz * particle.dz < 1e-8) return;
+  const matrix = camera.matrixWorldInverse.elements;
+  const x = matrix[0] * particle.dx + matrix[4] * particle.dy + matrix[8] * particle.dz;
+  const y = matrix[1] * particle.dx + matrix[5] * particle.dy + matrix[9] * particle.dz;
+  sprite.material.rotation = x * x + y * y < 1e-8 ? 0 : Math.atan2(y, x);
+}
+
+function createPool(scene, count, colour, blending, map, orient = null) {
   const pool = new Array(count);
   for (let index = 0; index < count; index += 1) {
     const material = new THREE.SpriteMaterial({
@@ -36,11 +80,18 @@ function createPool(scene, count, colour, blending, map) {
     sprite.frustumCulled = false;
     sprite.renderOrder = blending === THREE.AdditiveBlending ? 4 : 3;
     scene.add(sprite);
-    pool[index] = {
+    let particle;
+    if (orient) {
+      sprite.onBeforeRender = function (renderer, renderScene, camera) {
+        orient(particle, this, camera);
+      };
+    }
+    particle = {
       sprite, active: false, age: 0, life: 1, size: 1, growth: 0,
       vx: 0, vy: 0, vz: 0, rise: 0, drag: 0, opacity: 0, fadeIn: 0.04,
-      stretchX: 1, stretchY: 1,
+      stretchX: 1, stretchY: 1, dx: 0, dy: 0, dz: 0,
     };
+    pool[index] = particle;
   }
   pool.cursor = 0;
   return pool;
@@ -148,6 +199,56 @@ function spawnTouchdownDust(effects, state) {
   }
 }
 
+
+function spawnShockwave(effects, x, y, z, scale) {
+  const particle = takeParticle(effects.rings);
+  particle.age = 0;
+  particle.life = 0.55;
+  particle.size = 4 * scale;
+  particle.growth = (36 * scale) / 0.55;
+  particle.sprite.position.set(x, y + 0.12, z);
+  particle.vx = 0; particle.vy = 0; particle.vz = 0;
+  particle.rise = 0; particle.drag = 0;
+  particle.opacity = 0.45;
+  particle.fadeIn = 0.008;
+  particle.stretchX = 1;
+  particle.stretchY = 1;
+  particle.sprite.scale.setScalar(particle.size);
+  particle.sprite.material.opacity = 0.45;
+}
+
+function spawnEmbers(effects, x, y, z, scale) {
+  const count = 8 + Math.floor(nextRandom(effects) * 5);
+  for (let index = 0; index < count; index += 1) {
+    const particle = takeParticle(effects.embers);
+    const angle = nextRandom(effects) * Math.PI * 2;
+    const speed = (20 + nextRandom(effects) * 22) * scale;
+    const lift = -0.65 + nextRandom(effects) * 1.6;
+    const spread = Math.sqrt(1 - lift * lift);
+    particle.age = 0;
+    particle.life = 0.7 + nextRandom(effects) * 0.4;
+    particle.size = (0.32 + nextRandom(effects) * 0.38) * scale;
+    particle.growth = -0.16 * scale;
+    particle.sprite.position.set(
+      x + (nextRandom(effects) - 0.5) * 3 * scale,
+      y + (nextRandom(effects) - 0.5) * 3 * scale,
+      z + (nextRandom(effects) - 0.5) * 3 * scale,
+    );
+    particle.vx = Math.cos(angle) * speed * spread;
+    particle.vy = lift * speed + 4 * scale;
+    particle.vz = Math.sin(angle) * speed * spread;
+    particle.rise = -20;
+    particle.drag = 0.38;
+    particle.opacity = 1;
+    particle.fadeIn = 0.008;
+    particle.stretchX = 0.38;
+    particle.stretchY = 2.2;
+    particle.sprite.material.rotation = angle;
+    particle.sprite.scale.set(particle.size * 0.38, particle.size * 2.2, 1);
+    particle.sprite.material.opacity = 1;
+  }
+}
+
 function spawnCrash(effects, state) {
   effects.fireball.position.copy(state.position);
   effects.fireball.position.y += 1;
@@ -155,6 +256,8 @@ function spawnCrash(effects, state) {
   effects.fireball.material.opacity = 1;
   effects.fireball.visible = true;
   effects.fireballAge = 0;
+  spawnShockwave(effects, state.position.x, state.position.y, state.position.z, 1);
+  spawnEmbers(effects, state.position.x, state.position.y + 1, state.position.z, 1.2);
 
   for (let index = 0; index < effects.crashSmoke.length; index += 1) {
     const particle = takeParticle(effects.crashSmoke);
@@ -205,22 +308,26 @@ function emitDamageSmoke(effects, state) {
   particle.sprite.material.opacity = 0;
 }
 
-function spawnMuzzle(effects, x, y, z, scale) {
+function spawnMuzzle(effects, x, y, z, scale, direction) {
   const particle = takeParticle(effects.muzzle);
   particle.age = 0;
-  particle.life = 0.1;
-  particle.size = 1.5 * scale;
-  particle.growth = 5.5;
+  particle.life = 0.12;
+  particle.size = 2.1 * scale;
+  particle.growth = 8.5 * scale;
   particle.sprite.position.set(x, y, z);
   particle.vx = 0; particle.vy = 0; particle.vz = 0;
   particle.rise = 0; particle.drag = 0;
-  particle.opacity = 0.95;
+  particle.opacity = 1;
   particle.fadeIn = 0.001;
-  particle.stretchX = 1.4;
-  particle.stretchY = 1.4;
-  particle.sprite.material.rotation = nextRandom(effects) * Math.PI;
-  particle.sprite.scale.setScalar(particle.size);
-  particle.sprite.material.opacity = 0.95;
+  particle.stretchX = 3.8;
+  particle.stretchY = 0.6;
+  particle.dx = direction ? direction.x : 0;
+  particle.dy = direction ? direction.y : 0;
+  particle.dz = direction ? direction.z : 0;
+  particle.sprite.material.color.set('#FFF1C2');
+  particle.sprite.material.rotation = 0;
+  particle.sprite.scale.set(particle.size * 3.8, particle.size * 0.6, 1);
+  particle.sprite.material.opacity = 1;
 }
 
 function spawnImpact(effects, x, y, z, scale) {
@@ -249,66 +356,91 @@ function spawnImpact(effects, x, y, z, scale) {
 }
 
 function spawnFlak(effects, x, y, z, scale) {
-  for (let index = 0; index < 3; index += 1) {
-    const particle = takeParticle(effects.flak);
-    particle.age = 0;
-    particle.life = 1.6 + nextRandom(effects) * 0.9;
-    particle.size = (2.4 + nextRandom(effects) * 1.8) * scale;
-    particle.growth = 2.6;
-    particle.sprite.position.set(
-      x + (nextRandom(effects) - 0.5) * 9 * scale,
-      y + (nextRandom(effects) - 0.5) * 9 * scale,
-      z + (nextRandom(effects) - 0.5) * 9 * scale,
-    );
-    particle.vx = (nextRandom(effects) - 0.5) * 3;
-    particle.vy = 1.2 + nextRandom(effects) * 2.4;
-    particle.vz = (nextRandom(effects) - 0.5) * 3;
-    particle.rise = 0.5;
-    particle.drag = 0.9;
-    particle.opacity = 0.62;
-    particle.fadeIn = 0.05;
-    particle.stretchX = 1;
-    particle.stretchY = 1;
-    particle.sprite.material.rotation = nextRandom(effects) * Math.PI;
-    particle.sprite.scale.setScalar(particle.size);
-    particle.sprite.material.opacity = 0.62;
-  }
-  const flash = takeParticle(effects.muzzle);
-  flash.age = 0;
-  flash.life = 0.09;
-  flash.size = 2.6 * scale;
-  flash.growth = 9;
-  flash.sprite.position.set(x, y, z);
-  flash.vx = 0; flash.vy = 0; flash.vz = 0;
-  flash.rise = 0; flash.drag = 0;
-  flash.opacity = 0.9;
-  flash.fadeIn = 0.001;
-  flash.stretchX = 1;
-  flash.stretchY = 1;
-  flash.sprite.scale.setScalar(flash.size);
-  flash.sprite.material.opacity = 0.9;
+  const particle = takeParticle(effects.flak);
+  const life = 1.15 + nextRandom(effects) * 0.35;
+  const targetSize = (18 + nextRandom(effects) * 8) * scale;
+  particle.age = 0;
+  particle.life = life;
+  particle.size = (2.8 + nextRandom(effects) * 1.4) * scale;
+  particle.growth = (targetSize - particle.size) / life;
+  particle.sprite.position.set(
+    x + (nextRandom(effects) - 0.5) * 2 * scale,
+    y + (nextRandom(effects) - 0.5) * 2 * scale,
+    z + (nextRandom(effects) - 0.5) * 2 * scale,
+  );
+  particle.vx = (nextRandom(effects) - 0.5) * 1.6;
+  particle.vy = 0.8 + nextRandom(effects) * 1.4;
+  particle.vz = (nextRandom(effects) - 0.5) * 1.6;
+  particle.rise = 0.25;
+  particle.drag = 0.8;
+  particle.opacity = 0.72;
+  particle.fadeIn = 0.035;
+  particle.stretchX = 1;
+  particle.stretchY = 1;
+  particle.sprite.material.rotation = nextRandom(effects) * Math.PI;
+  particle.sprite.scale.setScalar(particle.size);
+  particle.sprite.material.opacity = 0.72;
+
+  const core = takeParticle(effects.muzzle);
+  core.age = 0;
+  core.life = 0.14;
+  core.size = 4 * scale;
+  core.growth = (targetSize - core.size) / core.life;
+  core.sprite.position.set(x, y, z);
+  core.vx = 0; core.vy = 0; core.vz = 0;
+  core.rise = 0; core.drag = 0;
+  core.opacity = 1;
+  core.fadeIn = 0.001;
+  core.stretchX = 1.1;
+  core.stretchY = 1.1;
+  core.dx = 0; core.dy = 0; core.dz = 0;
+  core.sprite.material.color.set('#FF7A1F');
+  core.sprite.material.rotation = 0;
+  core.sprite.scale.setScalar(core.size);
+  core.sprite.material.opacity = 1;
 }
 
 function spawnSplash(effects, x, z, scale) {
-  for (let index = 0; index < 3; index += 1) {
+  const count = 5 + Math.floor(nextRandom(effects) * 4);
+  for (let index = 0; index < count; index += 1) {
     const particle = takeParticle(effects.splash);
     particle.age = 0;
-    particle.life = 0.55 + nextRandom(effects) * 0.4;
-    particle.size = (1.6 + nextRandom(effects) * 1.6) * scale;
-    particle.growth = 3.4;
-    particle.sprite.position.set(x, 0.6, z);
-    particle.vx = (nextRandom(effects) - 0.5) * 5;
-    particle.vy = 6 + nextRandom(effects) * 7;
-    particle.vz = (nextRandom(effects) - 0.5) * 5;
-    particle.rise = -9;
-    particle.drag = 0.5;
-    particle.opacity = 0.72;
+    particle.life = 1.1;
+    particle.size = (1.5 + nextRandom(effects) * 1.3) * scale;
+    particle.growth = 2.6 * scale;
+    particle.sprite.position.set(
+      x + (nextRandom(effects) - 0.5) * 2.4 * scale,
+      0.25 + nextRandom(effects) * 1.1 * scale,
+      z + (nextRandom(effects) - 0.5) * 2.4 * scale,
+    );
+    particle.vx = (nextRandom(effects) - 0.5) * 3.2;
+    particle.vy = 6.5 + nextRandom(effects) * 4.5;
+    particle.vz = (nextRandom(effects) - 0.5) * 3.2;
+    particle.rise = -3.2;
+    particle.drag = 0.55;
+    particle.opacity = 0.78;
     particle.fadeIn = 0.02;
-    particle.stretchX = 0.8;
-    particle.stretchY = 1.7;
-    particle.sprite.scale.set(particle.size * 0.8, particle.size * 1.7, 1);
-    particle.sprite.material.opacity = 0.72;
+    particle.stretchX = 0.85;
+    particle.stretchY = 1.35;
+    particle.sprite.material.rotation = nextRandom(effects) * Math.PI;
+    particle.sprite.scale.set(particle.size * 0.85, particle.size * 1.35, 1);
+    particle.sprite.material.opacity = 0.78;
   }
+
+  const ring = takeParticle(effects.rings);
+  ring.age = 0;
+  ring.life = 0.9;
+  ring.size = 2.5 * scale;
+  ring.growth = (21.5 * scale) / 0.9;
+  ring.sprite.position.set(x, 0.12, z);
+  ring.vx = 0; ring.vy = 0; ring.vz = 0;
+  ring.rise = 0; ring.drag = 0;
+  ring.opacity = 0.7;
+  ring.fadeIn = 0.015;
+  ring.stretchX = 1;
+  ring.stretchY = 1;
+  ring.sprite.scale.setScalar(ring.size);
+  ring.sprite.material.opacity = 0.7;
 }
 
 function spawnTrail(effects, x, y, z) {
@@ -333,6 +465,8 @@ function spawnTrail(effects, x, y, z) {
 }
 
 function spawnBlast(effects, x, y, z, scale) {
+  spawnShockwave(effects, x, y, z, scale);
+
   let blast = null;
   for (const slot of effects.blasts) {
     if (!slot.active) { blast = slot; break; }
@@ -341,7 +475,7 @@ function spawnBlast(effects, x, y, z, scale) {
     blast.active = true;
     blast.age = 0;
     blast.life = 0.95;
-    blast.size = 9 * scale;
+    blast.size = 13.5 * scale;
     blast.mesh.position.set(x, y, z);
     blast.mesh.scale.setScalar(blast.size * 0.25);
     blast.mesh.material.opacity = 1;
@@ -371,6 +505,7 @@ function spawnBlast(effects, x, y, z, scale) {
     particle.sprite.scale.setScalar(particle.size);
     particle.sprite.material.opacity = 0.55;
   }
+  spawnEmbers(effects, x, y, z, scale);
   spawnImpact(effects, x, y, z, 1.6 * scale);
 }
 
@@ -403,6 +538,7 @@ function updatePool(pool, dt) {
 
 export function createEffects(scene) {
   const map = particleTexture();
+  const ringMap = ringTexture();
   const group = new THREE.Group();
   group.name = 'Kestrel flight effects';
   scene.add(group);
@@ -414,16 +550,18 @@ export function createEffects(scene) {
   const dust = createPool(group, 10, '#B9B4A6', THREE.NormalBlending, map);
   const crashSmoke = createPool(group, 12, '#303B3D', THREE.NormalBlending, map);
   const damageSmoke = createPool(group, 14, '#566061', THREE.NormalBlending, map);
-  const muzzle = createPool(group, 12, '#FFE8A8', THREE.AdditiveBlending, map);
+  const muzzle = createPool(group, 12, '#FFE8A8', THREE.AdditiveBlending, map, orientMuzzle);
   const flak = createPool(group, 26, '#4B4B46', THREE.NormalBlending, map);
-  const splash = createPool(group, 20, '#EAF3F2', THREE.NormalBlending, map);
+  const splash = createPool(group, 20, '#FFFFFF', THREE.NormalBlending, map);
   const trail = createPool(group, 26, '#9AA0A0', THREE.NormalBlending, map);
+  const embers = createPool(group, 12, '#FFC46A', THREE.AdditiveBlending, map);
+  const rings = createPool(group, 12, '#FFE4B5', THREE.AdditiveBlending, ringMap, orientFlatRing);
   const blasts = [];
   for (let index = 0; index < 7; index += 1) {
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(1, 12, 8),
       new THREE.MeshBasicMaterial({
-        color: '#FFB055', transparent: true, opacity: 0, depthWrite: false,
+        color: '#FF9A3C', transparent: true, opacity: 0, depthWrite: false,
         blending: THREE.AdditiveBlending,
       }),
     );
@@ -447,8 +585,9 @@ export function createEffects(scene) {
 
   return {
     group, leftVapour, rightVapour, sparks, dust, crashSmoke, damageSmoke, fireball,
-    muzzle, flak, splash, trail, blasts,
-    map, live: 0, initialized: false, randomState: 0x6d2b79f5,
+    muzzle, flak, splash, trail, embers, rings, blasts,
+    map, ringMap, live: 0, initialized: false, randomState: 0x6d2b79f5,
+    forward: new THREE.Vector3(0, 0, -1), playerPosition: new THREE.Vector3(),
     lastRings: 0, dustActive: false, lastCrashed: false,
     damageSmokeTimer: 0, fireballAge: 0,
   };
@@ -457,6 +596,8 @@ export function createEffects(scene) {
 export function updateEffects(effects, world, dt) {
   const state = world.state;
   const mission = world.mission;
+  effects.forward.set(0, 0, -1).applyQuaternion(state.quaternion);
+  effects.playerPosition.copy(state.position);
   if (!effects.initialized) {
     effects.lastRings = mission.ringsPassed;
     effects.initialized = true;
@@ -510,6 +651,8 @@ export function updateEffects(effects, world, dt) {
   live += updatePool(effects.flak, dt);
   live += updatePool(effects.splash, dt);
   live += updatePool(effects.trail, dt);
+  live += updatePool(effects.embers, dt);
+  live += updatePool(effects.rings, dt);
 
   for (const blast of effects.blasts) {
     if (!blast.active) continue;
@@ -545,7 +688,8 @@ export function updateEffects(effects, world, dt) {
 
 export function resetEffects(effects) {
   const pools = [effects.leftVapour, effects.rightVapour, effects.sparks, effects.dust,
-    effects.crashSmoke, effects.damageSmoke, effects.muzzle, effects.flak, effects.splash, effects.trail];
+    effects.crashSmoke, effects.damageSmoke, effects.muzzle, effects.flak, effects.splash,
+    effects.trail, effects.embers, effects.rings];
   for (let poolIndex = 0; poolIndex < pools.length; poolIndex += 1) {
     const pool = pools[poolIndex];
     pool.cursor = 0;
@@ -568,20 +712,27 @@ export function resetEffects(effects) {
   effects.randomState = 0x6d2b79f5;
 }
 
+function directionToPlayer(effects, x, y, z) {
+  scratchOffset.set(effects.playerPosition.x - x, effects.playerPosition.y - y, effects.playerPosition.z - z);
+  return scratchOffset.lengthSq() < 1e-6 ? effects.forward : scratchOffset.normalize();
+}
+
 /** One dispatcher for the events the weapons and the AI raise, so the renderer stays short. */
 export function emitEffect(effects, event) {
   const scale = event.scale || 1;
   switch (event.type) {
-    case 'gun': spawnMuzzle(effects, event.x, event.y, event.z, scale * 1.2); break;
-    case 'enemy-gun': spawnMuzzle(effects, event.x, event.y, event.z, scale); break;
+    case 'gun': spawnMuzzle(effects, event.x, event.y, event.z, scale * 1.2, effects.forward); break;
+    case 'enemy-gun': spawnMuzzle(effects, event.x, event.y, event.z, scale,
+      directionToPlayer(effects, event.x, event.y, event.z)); break;
     case 'impact': spawnImpact(effects, event.x, event.y, event.z, scale); break;
     case 'explosion': spawnBlast(effects, event.x, event.y, event.z, scale); break;
     case 'flak': spawnFlak(effects, event.x, event.y, event.z, scale); break;
-    case 'flak-gun': spawnMuzzle(effects, event.x, event.y, event.z, scale * 1.4); break;
+    case 'flak-gun': spawnMuzzle(effects, event.x, event.y, event.z, scale * 1.4,
+      directionToPlayer(effects, event.x, event.y, event.z)); break;
     case 'flak-hit': spawnImpact(effects, event.x, event.y, event.z, scale * 2); break;
     case 'splash': spawnSplash(effects, event.x, event.z, scale); break;
     case 'trail': spawnTrail(effects, event.x, event.y, event.z); break;
-    case 'launch': spawnMuzzle(effects, event.x, event.y, event.z, 2.2); break;
+    case 'launch': spawnMuzzle(effects, event.x, event.y, event.z, 2.2, effects.forward); break;
     case 'flare': spawnFlak(effects, event.x, event.y - 3, event.z, 0.7); break;
     case 'player-hit': spawnImpact(effects, event.x, event.y, event.z, 1.4); break;
     default: break;

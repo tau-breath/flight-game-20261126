@@ -84,22 +84,48 @@ export function sampleTerrainHeight(x, z, seed = TERRAIN.seed) {
     (x - AIRFIELD.x) / TERRAIN.plateauRadiusX,
     (z - AIRFIELD.z) / TERRAIN.plateauRadiusZ,
   );
-  const plateau = 1 - smoothstep(0.88, 1.12, plateauDistance);
+  const plateau = 1 - smoothstep(0.62, 1.05, plateauDistance);
   return lerp(height, AIRFIELD.elevation, plateau);
 }
 
-function terrainColour(height, slope, variation) {
-  const colour = new THREE.Color();
-  if (height < 8) colour.set(PALETTE.sand);
-  else if (slope < 0.35) colour.set(PALETTE.grass);
-  else if (slope < 0.5) colour.set(PALETTE.dryGrass);
-  else if (slope < 0.7) colour.set(PALETTE.rock);
-  else colour.set(PALETTE.darkRock);
-  if (height > 620) colour.set(PALETTE.snow);
+const SAND = new THREE.Color(PALETTE.sand);
+const WET_SAND = new THREE.Color('#8C826B');
+const GRASS = new THREE.Color(PALETTE.grass);
+const MEADOW = new THREE.Color('#96A365');
+const SCRUB = new THREE.Color('#667A45');
+const DRY_GRASS = new THREE.Color(PALETTE.dryGrass);
+const OCHRE = new THREE.Color('#A0875E');
+const ROCK = new THREE.Color(PALETTE.rock);
+const DARK_ROCK = new THREE.Color(PALETTE.darkRock);
+const SNOW = new THREE.Color(PALETTE.snow);
+const SUN_TINT = new THREE.Color('#FFE0A3');
+const VALLEY_TINT = new THREE.Color('#53634A');
 
-  const heightBand = 0.93 + Math.sin(height * 0.047) * 0.055;
-  const cliffBands = slope >= 0.5 ? (Math.floor(height / 22) % 2 === 0 ? 0.94 : 1.06) : 1;
-  colour.multiplyScalar(heightBand * cliffBands * (0.94 + variation * 0.12));
+function terrainColour(x, z, height, slope, variation) {
+  const meadow = fbm(x * 0.00075 + 17, z * 0.00075 - 29, 4, 9137);
+  const scrub = fbm(x * 0.0021 - 41, z * 0.0021 + 63, 3, 4109);
+  const patches = smoothstep(0.38, 0.68, meadow) * (1 - smoothstep(0.54, 0.78, scrub));
+  const colour = GRASS.clone().lerp(SCRUB, patches * 0.6).lerp(MEADOW, smoothstep(0.56, 0.78, meadow) * 0.7);
+
+  if (height < 2) colour.copy(WET_SAND).lerp(SAND, smoothstep(0, 2, height));
+  else if (height < 7) colour.copy(SAND).lerp(GRASS, smoothstep(2, 7, height) * 0.55);
+  else if (slope >= 0.18 && height < 590) {
+    const dry = smoothstep(0.18, 0.48, slope);
+    colour.copy(GRASS).lerp(DRY_GRASS, dry);
+    const rockAmount = smoothstep(0.32, 0.7, slope);
+    colour.lerp(OCHRE, rockAmount).lerp(ROCK, smoothstep(0.62, 0.82, slope));
+    colour.lerp(DARK_ROCK, smoothstep(0.55, 1.08, slope));
+    const strata = Math.floor(height / 18) % 2 === 0 ? 0.92 : 1.08;
+    colour.multiplyScalar(strata);
+  }
+
+  const snowLine = smoothstep(640, 710, height + (variation - 0.5) * 36);
+  colour.lerp(SNOW, snowLine);
+  const valley = smoothstep(0.44, 0.78, fbm(x * 0.00135 - 73, z * 0.00135 + 19, 4, 6203));
+  colour.lerp(VALLEY_TINT, valley * 0.12 * (1 - snowLine));
+  const sunSide = clamp(0.5 + (variation - 0.5) * 0.7 + (meadow - 0.5) * 0.3, 0, 1);
+  colour.lerp(SUN_TINT, sunSide * 0.07);
+  colour.multiplyScalar(0.93 + (variation - 0.5) * 0.1);
   return colour;
 }
 
@@ -183,13 +209,16 @@ function createSea(scene) {
   const material = new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
-      uDeep: { value: new THREE.Color('#246C78') },
-      uShallow: { value: new THREE.Color(PALETTE.seaLight) },
+      uDeep: { value: new THREE.Color('#12505F') },
+      uShallow: { value: new THREE.Color('#2E8A93') },
       uFoam: { value: new THREE.Color(PALETTE.foam) },
       uFog: { value: new THREE.Color(PALETTE.fog) },
       uFogNear: { value: SKY.fogNear },
       uFogFar: { value: SKY.fogFar },
       uSun: { value: new THREE.Vector2(Math.sin(azimuth), -Math.cos(azimuth)) },
+      uSky: { value: new THREE.Color('#A8C6D8') },
+      uSunElevation: { value: SKY.sunElevation },
+      uSunWarm: { value: new THREE.Color('#FFF1D6') },
     },
     vertexShader: `
       varying vec3 vWorld;
@@ -208,28 +237,66 @@ function createSea(scene) {
       uniform float uFogNear;
       uniform float uFogFar;
       uniform vec2 uSun;
+      uniform vec3 uSky;
+      uniform float uSunElevation;
+      uniform vec3 uSunWarm;
       varying vec3 vWorld;
       float hash(vec2 p) {
         return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
       }
+      void addWave(
+        vec2 point, vec2 direction, float frequency, float amplitude, float phase,
+        inout float height, inout vec2 gradient
+      ) {
+        float angle = dot(point, direction) * frequency + phase;
+        height += sin(angle) * amplitude;
+        gradient += direction * (cos(angle) * frequency * amplitude);
+      }
       void main() {
-        float swell = sin(vWorld.x * 0.018 + vWorld.z * 0.011 + uTime * 0.42);
-        float chop = sin(vWorld.x * 0.145 - vWorld.z * 0.09 - uTime * 1.35);
-        float ripple = swell * 0.64 + chop * 0.36;
-        vec3 colour = mix(uDeep, uShallow, 0.4 + ripple * 0.16);
-        float acrossSun = vWorld.x * uSun.y - vWorld.z * uSun.x;
-        float sunLane = 1.0 - smoothstep(120.0, 900.0, abs(acrossSun));
-        vec2 sparkleCell = floor(vWorld.xz * 0.34 + vec2(uTime * 0.7, -uTime * 0.45));
-        float sparkle = hash(sparkleCell);
-        sparkle = smoothstep(0.82, 1.0, sparkle) * max(0.0, ripple + 0.25);
-        colour = mix(colour, uFoam, sunLane * (0.12 + sparkle * 0.72));
+        float distance = length(cameraPosition - vWorld);
+        float detailFade = exp(-distance / 2500.0);
+        float waveHeight = 0.0;
+        vec2 slope = vec2(0.0);
+        addWave(vWorld.xz, normalize(vec2(1.0, 0.31)), 0.113, 0.46, uTime * 1.10, waveHeight, slope);
+        addWave(vWorld.xz, normalize(vec2(-0.37, 1.0)), 0.173, 0.24, uTime * 1.45, waveHeight, slope);
+        addWave(vWorld.xz, normalize(vec2(0.67, -0.79)), 0.287, 0.105, uTime * 1.90, waveHeight, slope);
+        addWave(vWorld.xz, normalize(vec2(-0.93, -0.27)), 0.461, 0.014 * detailFade, uTime * 2.45, waveHeight, slope);
+        addWave(vWorld.xz, normalize(vec2(1.0, 0.18)), 0.012, 0.40, uTime * 0.24, waveHeight, slope);
+        addWave(vWorld.xz, normalize(vec2(0.42, 1.0)), 0.009, 0.28, uTime * 0.19, waveHeight, slope);
+        addWave(vWorld.xz, normalize(vec2(-0.26, 1.0)), 0.024, 0.20, uTime * 0.31, waveHeight, slope);
+        float steepness = length(slope);
+        vec3 normal = normalize(vec3(-slope.x * 1.55, 1.0, -slope.y * 1.55));
         vec3 viewRay = normalize(cameraPosition - vWorld);
+        float facing = max(dot(normal, viewRay), 0.0);
+        float fresnel = 0.02 + 0.98 * pow(1.0 - facing, 5.0);
+        float crest = smoothstep(0.5, 1.25, waveHeight);
+        float capCrest = smoothstep(0.78, 1.02, waveHeight);
+        vec3 colour = mix(uDeep, uShallow, 0.07 + crest * 0.08);
+        colour = mix(colour, uSky, fresnel * 0.585);
+
+        float capNoise = hash(floor(vWorld.xz * 1.1));
+        float whitecaps = capCrest
+          * smoothstep(0.085, 0.18, steepness)
+          * smoothstep(0.76, 0.97, capNoise);
+        colour = mix(colour, uFoam, whitecaps * 0.30);
+
+        vec3 sunDir = normalize(vec3(
+          uSun.x * cos(uSunElevation),
+          sin(uSunElevation),
+          uSun.y * cos(uSunElevation)
+        ));
+        float sunAlignment = max(dot(reflect(-viewRay, normal), sunDir), 0.0);
+        float sunGlitter = pow(sunAlignment, 32.0);
+        float sunSheen = pow(sunAlignment, 7.0);
+        colour += uSunWarm * (sunGlitter * 0.9 + sunSheen * 0.12);
+
         float distanceFog = smoothstep(uFogNear, uFogFar, length(cameraPosition - vWorld));
         float horizonBand = 1.0 - smoothstep(0.001, 0.006, abs(viewRay.y));
         colour = mix(colour, uFog, max(distanceFog, horizonBand * 0.92));
         gl_FragColor = vec4(colour, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
+        gl_FragColor.rgb += (hash(gl_FragCoord.xy) - 0.5) / 255.0;
       }
     `,
   });
@@ -256,7 +323,7 @@ export function createTerrain(scene) {
     const height = positions.getY(index);
     const slope = 1 - normals.getY(index);
     const variation = fbm(positions.getX(index) * 0.002, positions.getZ(index) * 0.002, 2, 733);
-    const colour = terrainColour(height, slope, variation);
+    const colour = terrainColour(positions.getX(index), positions.getZ(index), height, slope, variation);
     colours[index * 3] = colour.r;
     colours[index * 3 + 1] = colour.g;
     colours[index * 3 + 2] = colour.b;

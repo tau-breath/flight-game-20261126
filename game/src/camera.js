@@ -16,6 +16,7 @@ export function createCameraRig(camera) {
   return {
     camera, mode: 'chase', initialized: false, time: 0,
     position: new THREE.Vector3(), look: new THREE.Vector3(), shake: 0,
+    shotBack: 0, shotUp: 0, shotSide: 0, shotFov: 0,
   };
 }
 
@@ -28,6 +29,7 @@ export function updateCamera(rig, state, dt, mode = 'chase') {
   }
   const forward = LOCAL_FORWARD.clone().applyQuaternion(state.quaternion);
   const up = LOCAL_UP.clone().applyQuaternion(state.quaternion);
+  const right = new THREE.Vector3(1, 0, 0).applyQuaternion(state.quaternion);
 
   if (mode === 'cockpit') {
     desiredPosition.set(CAMERA.cockpitEyeSide, AIRCRAFT.eyeHeight, -AIRCRAFT.eyeForward)
@@ -44,11 +46,15 @@ export function updateCamera(rig, state, dt, mode = 'chase') {
 
   desiredPosition.set(0, CAMERA.chaseUp, CAMERA.chaseBack)
     .applyQuaternion(state.quaternion).add(state.position);
+  desiredPosition.addScaledVector(forward, -rig.shotBack)
+    .addScaledVector(up, rig.shotUp).addScaledVector(right, rig.shotSide);
   desiredLook.copy(forward).multiplyScalar(CAMERA.lookAhead)
     .addScaledVector(up, CAMERA.lookUp).add(state.position);
   cameraUp.copy(LOCAL_UP).applyAxisAngle(forward, -state.bank * CAMERA.bankRoll);
   const speedAmount = clamp(state.speed / 96, 0, 1);
-  camera.fov = CAMERA.chaseFov + (CAMERA.speedFov - CAMERA.chaseFov) * speedAmount;
+  camera.fov = rig.shotFov > 1
+    ? rig.shotFov
+    : CAMERA.chaseFov + (CAMERA.speedFov - CAMERA.chaseFov) * speedAmount;
 
   const buffet = state.stall ? CAMERA.stallShake : clamp((state.gForce - 3) * 0.012, 0, 0.045);
   rig.shake = damp(rig.shake, buffet, 7, dt);
