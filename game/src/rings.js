@@ -49,7 +49,7 @@ export function createRings(scene, mission) {
       blending: THREE.AdditiveBlending, depthWrite: false,
     }));
     halo.position.copy(torus.position);
-    halo.scale.set(90, 90, 1);
+    halo.scale.set(34, 34, 1);
     halo.visible = index === 0;
     group.add(halo);
     return {
@@ -80,8 +80,8 @@ export function updateRings(rings, index, time) {
   const ring = rings[index];
   if (!ring) return;
   const pulse = 0.5 + 0.5 * Math.sin(time * Math.PI * 2 * 1.5);
-  ring.halo.scale.setScalar(46 * (0.96 + pulse * 0.08));
-  ring.halo.material.opacity = 0.68 + pulse * 0.3;
+  ring.halo.scale.setScalar(30 * (0.96 + pulse * 0.08));
+  ring.halo.material.opacity = 0.4 + pulse * 0.22;
   ring.material.emissiveIntensity = 1.35 + pulse * 0.5;
 }
 

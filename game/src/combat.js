@@ -31,13 +31,32 @@ function segmentHitsSphere(px, py, pz, x, y, z, cx, cy, cz, radius) {
   return qx * qx + qy * qy + qz * qz <= radius * radius;
 }
 
+let tracerTextureCache = null;
+function tracerTexture() {
+  if (tracerTextureCache) return tracerTextureCache;
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const context = canvas.getContext('2d');
+  const gradient = context.createRadialGradient(32, 32, 1, 32, 32, 31);
+  gradient.addColorStop(0, 'rgba(255,255,255,1)');
+  gradient.addColorStop(0.35, 'rgba(255,236,190,0.92)');
+  gradient.addColorStop(0.72, 'rgba(255,180,90,0.45)');
+  gradient.addColorStop(1, 'rgba(255,150,60,0)');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, 64, 64);
+  tracerTextureCache = new THREE.CanvasTexture(canvas);
+  tracerTextureCache.colorSpace = THREE.SRGBColorSpace;
+  return tracerTextureCache;
+}
+
 function createTracerField(scene, count, colour) {
   // One instanced quad per round: a short streak stretched along its own flight path and turned to
   // face the eye, so a tracer reads at any angle instead of collapsing to a dot when it flies away.
   const geometry = new THREE.PlaneGeometry(1, 1);
   const material = new THREE.MeshBasicMaterial({
-    color: colour, transparent: true, opacity: 0.95, depthWrite: false, side: THREE.DoubleSide,
-    blending: THREE.AdditiveBlending,
+    color: colour, map: tracerTexture(), transparent: true, opacity: 1, depthWrite: false,
+    side: THREE.DoubleSide,
   });
   const mesh = new THREE.InstancedMesh(geometry, material, count);
   mesh.frustumCulled = false;
@@ -447,8 +466,8 @@ export function stepCombat(combat, world, forces, input, dt) {
   stepBullets(combat, world, forces, dt);
   stepMissiles(combat, world, dt);
 
-  writeTracers(combat.playerTracers, combat.playerBullets, 7.5, state.position, 0.9);
-  writeTracers(combat.enemyTracers, combat.enemyBullets, 6, state.position, 0.8);
+  writeTracers(combat.playerTracers, combat.playerBullets, 5.2, state.position, 1.1);
+  writeTracers(combat.enemyTracers, combat.enemyBullets, 4.4, state.position, 1.0);
 }
 
 /** Fired from the flow when the player presses the rocket key. */
