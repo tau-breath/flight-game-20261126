@@ -57,7 +57,7 @@ function createTracerField(scene, count, colour) {
   const pool = [];
   for (let index = 0; index < count; index += 1) {
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-      map, color: colour, transparent: true, opacity: 0.95, depthWrite: false,
+      map, color: colour, transparent: true, opacity: 0.95, depthWrite: false, depthTest: false,
     }));
     sprite.visible = false;
     sprite.renderOrder = 6;
@@ -76,7 +76,7 @@ function writeTracers(field, bullets) {
     if (!sprite) break;
     sprite.visible = true;
     sprite.position.set(bullet.x, bullet.y, bullet.z);
-    sprite.scale.set(1.5, 5.2, 1);
+    sprite.scale.set(2.2, 7.0, 1);
     used += 1;
   }
   for (let index = used; index < field.count; index += 1) field.pool[index].visible = false;
