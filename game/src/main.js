@@ -441,30 +441,7 @@ window.__diag = () => {
     },
     enemies: forces.units.filter((unit) => unit.alive).length,
     player: [Math.round(world.state.position.x), Math.round(world.state.position.y), Math.round(world.state.position.z)],
-    units: forces.units.map((unit) => ({
-      id: unit.id,
-      d: Math.round(Math.hypot(unit.x - world.state.position.x, unit.y - world.state.position.y, unit.z - world.state.position.z)),
-      hp: Math.round(unit.hp),
-    })),
-    tracers: {
-      active: combat.playerBullets.filter((bullet) => bullet.active).length,
-      drawn: combat.playerTracers.pool.filter((sprite) => sprite.visible).length,
-      enemyDrawn: combat.enemyTracers.pool.filter((sprite) => sprite.visible).length,
-      screen: combat.playerBullets.filter((bullet) => bullet.active).slice(0, 4).map((bullet) => {
-        const point = new THREE.Vector3(bullet.x, bullet.y, bullet.z).project(camera);
-        return [Math.round((point.x * 0.5 + 0.5) * window.innerWidth),
-          Math.round((-point.y * 0.5 + 0.5) * window.innerHeight),
-          Math.round(Math.hypot(bullet.x - world.state.position.x, bullet.y - world.state.position.y, bullet.z - world.state.position.z))];
-      }),
-      meshVisible: true,
-      meshCount: 0,
-      materialVisible: true,
-    },
     lock: combat.lockTarget?.id ?? null,
-    lockDistance: combat.lockTarget
-      ? Math.round(Math.hypot(combat.lockTarget.x - world.state.position.x,
-        combat.lockTarget.y - world.state.position.y, combat.lockTarget.z - world.state.position.z))
-      : null,
     stage: world.mission.stageIndex,
     error: firstError,
   };

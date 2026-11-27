@@ -277,7 +277,7 @@ function killUnit(forces, unit) {
   unit.hp = 0;
   const world = forces.world;
   if (world) {
-    world.events.push({ type: 'explosion', x: unit.x, y: unit.y, z: unit.z, scale: unit.kind === 'fighter' ? 1.4 : 2.4 });
+    world.events.push({ type: 'explosion', x: unit.x, y: unit.y, z: unit.z, scale: unit.kind === 'fighter' ? 1.7 : 3.4 });
     world.lastKill = {
       kind: unit.kind,
       labels: { fighter: 'RAIDER SPLASHED', gunboat: 'GUNBOAT SILENCED', flak: 'FLAK BATTERY SILENCED' },

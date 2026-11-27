@@ -64,7 +64,7 @@ export const SKY = Object.freeze({
 
 export const CAMERA = Object.freeze({
   chaseBack: 15, chaseUp: 4.2, lookAhead: 18.2, lookUp: 2.4,
-  chaseFov: 60, speedFov: 72, cockpitFov: 64, cockpitLookAhead: 60, cockpitLookDown: 14.0, cockpitEyeSide: -0.12, stiffness: 8, bankRoll: 0.35,
+  chaseFov: 60, speedFov: 72, cockpitFov: 64, cockpitLookAhead: 60, cockpitLookDown: 9.0, cockpitEyeSide: -0.12, stiffness: 8, bankRoll: 0.35,
   stallShake: 0.11, near: 0.15, far: 9200,
 });
 
