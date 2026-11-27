@@ -50,37 +50,36 @@ function tracerTexture() {
   return tracerTextureCache;
 }
 
-function createTracerField(scene, count, colour, size) {
-  // One Points cloud per side: every round is a camera-facing glow, so a stream fired straight
-  // away reads as a chain of rounds instead of vanishing into the vanishing point.
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
-  geometry.setDrawRange(0, 0);
-  const material = new THREE.PointsMaterial({
-    color: colour, map: tracerTexture(), size, sizeAttenuation: true, transparent: true,
-    opacity: 1, depthWrite: false, alphaTest: 0.02,
-  });
-  const points = new THREE.Points(geometry, material);
-  points.frustumCulled = false;
-  points.renderOrder = 6;
-  scene.add(points);
-  return { points, geometry, positions: geometry.attributes.position, count };
+function createTracerField(scene, count, colour) {
+  // A small pool of camera-facing sprites. Sprites are plain quads, so a round stays visible at
+  // every angle and on every driver, which lines and points do not.
+  const map = tracerTexture();
+  const pool = [];
+  for (let index = 0; index < count; index += 1) {
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map, color: colour, transparent: true, opacity: 0.95, depthWrite: false,
+    }));
+    sprite.visible = false;
+    sprite.renderOrder = 6;
+    scene.add(sprite);
+    pool.push(sprite);
+  }
+  return { pool, count };
 }
 
 function writeTracers(field, bullets) {
-  const positions = field.positions.array;
   let used = 0;
   for (let index = 0; index < bullets.length; index += 1) {
     const bullet = bullets[index];
     if (!bullet.active) continue;
-    positions[used * 3] = bullet.x;
-    positions[used * 3 + 1] = bullet.y;
-    positions[used * 3 + 2] = bullet.z;
+    const sprite = field.pool[used];
+    if (!sprite) break;
+    sprite.visible = true;
+    sprite.position.set(bullet.x, bullet.y, bullet.z);
+    sprite.scale.set(1.5, 5.2, 1);
     used += 1;
-    if (used >= field.count) break;
   }
-  field.geometry.setDrawRange(0, used);
-  field.positions.needsUpdate = true;
+  for (let index = used; index < field.count; index += 1) field.pool[index].visible = false;
 }
 
 function createMissileMesh(scene, index) {
@@ -141,8 +140,8 @@ export function glowTexture() {
 }
 
 export function createCombat(scene) {
-  const playerTracers = createTracerField(scene, PLAYER_BULLETS, '#FFB43A', 2.4);
-  const enemyTracers = createTracerField(scene, ENEMY_BULLETS, '#FF5A38', 2.2);
+  const playerTracers = createTracerField(scene, 56, '#FFB43A');
+  const enemyTracers = createTracerField(scene, 56, '#FF5A38');
   const playerBullets = [];
   const enemyBullets = [];
   for (let index = 0; index < PLAYER_BULLETS; index += 1) {

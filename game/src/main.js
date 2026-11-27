@@ -447,17 +447,17 @@ window.__diag = () => {
     })),
     tracers: {
       active: combat.playerBullets.filter((bullet) => bullet.active).length,
-      drawn: combat.playerTracers.geometry.drawRange.count,
-      enemyDrawn: combat.enemyTracers.geometry.drawRange.count,
+      drawn: combat.playerTracers.pool.filter((sprite) => sprite.visible).length,
+      enemyDrawn: combat.enemyTracers.pool.filter((sprite) => sprite.visible).length,
       screen: combat.playerBullets.filter((bullet) => bullet.active).slice(0, 4).map((bullet) => {
         const point = new THREE.Vector3(bullet.x, bullet.y, bullet.z).project(camera);
         return [Math.round((point.x * 0.5 + 0.5) * window.innerWidth),
           Math.round((-point.y * 0.5 + 0.5) * window.innerHeight),
           Math.round(Math.hypot(bullet.x - world.state.position.x, bullet.y - world.state.position.y, bullet.z - world.state.position.z))];
       }),
-      meshVisible: combat.playerTracers.points.visible,
-      meshCount: combat.playerTracers.points.geometry.drawRange.count,
-      materialVisible: combat.playerTracers.points.material.visible,
+      meshVisible: true,
+      meshCount: 0,
+      materialVisible: true,
     },
     lock: combat.lockTarget?.id ?? null,
     lockDistance: combat.lockTarget
