@@ -46,9 +46,9 @@ function advance(systems, seconds, input) {
 
 function stageStrike(world, systems) {
   world.startMission(MB_STRIKE);
-  const mission = world.mission;
   world.reset([5180, 214, -1090], 140, 78);
   world.state.throttle = 0.8;
+  const mission = world.mission;
   mission.stageIndex = 1;
   mission.stages[0].done = true;
   mission.ringsPassed = 3;
@@ -82,9 +82,9 @@ function stageStrike(world, systems) {
 
 function stageGuns(world, systems) {
   world.startMission(MB_STRIKE);
-  const mission = world.mission;
   world.reset([5420, 196, -700], 138, 74);
   world.state.throttle = 0.72;
+  const mission = world.mission;
   mission.stageIndex = 1;
   mission.stages[0].done = true;
   mission.ringsPassed = 3;
@@ -117,9 +117,9 @@ function stageGuns(world, systems) {
 
 function stageMissile(world, systems) {
   world.startMission(MB_STRIKE);
-  const mission = world.mission;
   world.reset([6020, 188, -540], 168, 82);
   world.state.throttle = 0.86;
+  const mission = world.mission;
   mission.stageIndex = 2;
   mission.stages[0].done = true;
   mission.stages[1].done = true;
