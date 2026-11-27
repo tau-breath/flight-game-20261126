@@ -35,7 +35,7 @@ function THREE_DEG(value) { return value * Math.PI / 180; }
 export const AIRCRAFT = Object.freeze({
   name: 'Kestrel Mk.I', fuselageLength: 8.4, noseRadius: 0.55, tailRadius: 0.18,
   wingSpan: 11, wingChord: 1.75, wingDihedral: THREE_DEG(1.5), propRadius: 1.25,
-  gearHeight: 1.25, eyeHeight: 1.16, eyeForward: 0.35,
+  gearHeight: 1.25, eyeHeight: 2.05, eyeForward: 0.9,
 });
 
 export const AIRFIELD = Object.freeze({
@@ -64,7 +64,7 @@ export const SKY = Object.freeze({
 
 export const CAMERA = Object.freeze({
   chaseBack: 15, chaseUp: 4.2, lookAhead: 18.2, lookUp: 2.4,
-  chaseFov: 60, speedFov: 72, cockpitFov: 66, cockpitLookAhead: 60, cockpitLookDown: 5.5, cockpitEyeSide: -0.16, stiffness: 8, bankRoll: 0.35,
+  chaseFov: 60, speedFov: 72, cockpitFov: 64, cockpitLookAhead: 60, cockpitLookDown: 8.0, cockpitEyeSide: -0.12, stiffness: 8, bankRoll: 0.35,
   stallShake: 0.11, near: 0.15, far: 9200,
 });
 
@@ -114,7 +114,7 @@ export const MISSIONS = Object.freeze([
       Object.freeze({ id: 'egress', kind: 'rings', title: 'EGRESS', goal: 'Exit through the last gate', rings: 4 }),
     ]),
     waves: Object.freeze([
-      Object.freeze({ id: 'raiders', at: 1, units: Object.freeze([
+      Object.freeze({ id: 'raiders', at: 0, units: Object.freeze([
         Object.freeze({ id: 'raider-1', kind: 'fighter', x: 5120, y: 226, z: -830, heading: 22, speed: 100, ace: true }),
         Object.freeze({ id: 'raider-2', kind: 'fighter', x: 5330, y: 196, z: -650, heading: 30, speed: 92, ace: false }),
       ]) }),

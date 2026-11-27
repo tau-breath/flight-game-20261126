@@ -76,10 +76,10 @@ function prepareStrike(world) {
   world.startMission(MB_STRIKE);
   world.state.gearDown = false;
   const mission = world.mission;
-  mission.stages[0].done = true;
   mission.ringsPassed = 3;
   mission.activeRing = 3;
   mission.stageIndex = 1;
+  mission.stages[0].done = true;
   mission.goal = mission.stages[1].goal;
   mission.score = 1240;
   mission.elapsed = 58;
@@ -91,25 +91,30 @@ function prepareStrike(world) {
 }
 
 function stageStrike(world, systems) {
-  world.reset([5440, 236, -1000], 202, 80);
+  world.reset([5050, 252, -70], 212, 80);
   const mission = prepareStrike(world);
+  mission.ringsPassed = 2;
+  mission.activeRing = 2;
+  mission.stageIndex = 0;
+  mission.stages[0].done = false;
+  mission.goal = mission.stages[0].goal;
   world.state.throttle = 0.82;
-  advance(systems, 0.34, stick(true, 0.02, 0.03));
-  advance(systems, 0.24, stick(true, 0.02, 0.02));
+  advance(systems, 0.32, stick(true, 0.02, 0.03));
+  advance(systems, 0.22, stick(true, 0.02, 0.02));
   const lead = systems.forces.byId.get('raider-1');
   const wing = systems.forces.byId.get('raider-2');
   hold(lead, 3.4);
   hold(wing, 4.1);
-  if (lead) placeCrossing(lead, world.state, 198, 9, 2.5, 128, -42);
-  if (wing) placeCrossing(wing, world.state, 336, -13, 4.4, -134, 34);
+  if (lead) placeCrossing(lead, world.state, 74, 8.5, 1.6, 126, -44);
+  if (wing) placeCrossing(wing, world.state, 158, -13, 4.0, -138, 32);
   advance(systems, 0.05, stick(true, 0.02, 0.02));
   forceLock(systems.combat, lead);
-  return { screen: 'FLYING', cameraMode: 'chase', ringIndex: 3, mission };
+  return { screen: 'FLYING', cameraMode: 'chase', ringIndex: 2, mission };
 }
 
 function stageGuns(world, systems) {
   world.startMission(MB_STRIKE);
-  world.reset([5230, 208, -640], 205, 76);
+  world.reset([5080, 250, -180], 212, 76);
   const mission = prepareStrike(world);
   world.state.throttle = 0.7;
   world.state.damage = 26;
@@ -118,8 +123,8 @@ function stageGuns(world, systems) {
   const wing = systems.forces.byId.get('raider-2');
   hold(lead, 3.4);
   hold(wing, 4.1);
-  if (lead) placeCrossing(lead, world.state, 96, 3, 1.4, 152, -46);
-  if (wing) placeCrossing(wing, world.state, 226, -14, 4.8, -140, 30);
+  if (lead) placeCrossing(lead, world.state, 88, 4, 1.0, 148, -48);
+  if (wing) placeCrossing(wing, world.state, 190, -15, 4.6, -142, 28);
   advance(systems, 0.05, stick(true, 0.02, 0));
   forceLock(systems.combat, lead);
   return { screen: 'FLYING', cameraMode: 'cockpit', ringIndex: 3, mission };
@@ -127,7 +132,7 @@ function stageGuns(world, systems) {
 
 function stageMissile(world, systems) {
   world.startMission(MB_STRIKE);
-  world.reset([5420, 96, -770], 212, 84);
+  world.reset([5260, 62, -420], 208, 84);
   const mission = world.mission;
   mission.stages[0].done = true;
   mission.stages[1].done = true;
@@ -154,7 +159,7 @@ function stageMissile(world, systems) {
   if (barge) systems.forces.applyDamage(barge, 500, 'rocket');
   advance(systems, 0.28, stick(false, 0.01, -0.02));
   forceLock(systems.combat, gunboat);
-  return { screen: 'FLYING', cameraMode: 'chase', ringIndex: 3, mission };
+  return { screen: 'FLYING', cameraMode: 'chase', ringIndex: 2, mission };
 }
 
 function stageRing(world, systems) {
