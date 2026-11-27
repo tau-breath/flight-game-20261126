@@ -328,7 +328,7 @@ function stepBullets(combat, world, forces, dt) {
         combat.markFlash = 0.12;
         combat.comboTimer = 3.2;
         combat.combo = Math.min(4, combat.combo + 0.34);
-        world.score += Math.round(COMBAT.scoreHit * combat.combo);
+        world.mission.score += Math.round(COMBAT.scoreHit * combat.combo);
         world.events.push({ type: 'impact', x: bullet.x, y: bullet.y, z: bullet.z, scale: 1 });
         spent = true;
         break;

@@ -285,7 +285,7 @@ function killUnit(forces, unit) {
     };
     const score = unit.kind === 'fighter' ? COMBAT.scoreKillFighter
       : unit.kind === 'gunboat' ? COMBAT.scoreKillGunboat : COMBAT.scoreKillFlak;
-    world.score += score + Math.round(unit.maxHp);
+    world.mission.score += score + Math.round(unit.maxHp);
     if (world.combat) {
       world.combat.kills += 1;
       world.combat.killFlash = 0.9;
