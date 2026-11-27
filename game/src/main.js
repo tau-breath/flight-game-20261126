@@ -439,6 +439,17 @@ window.__diag = () => {
       damage: Number(world.state.damage.toFixed(1)),
     },
     enemies: forces.units.filter((unit) => unit.alive).length,
+    player: [Math.round(world.state.position.x), Math.round(world.state.position.y), Math.round(world.state.position.z)],
+    units: forces.units.map((unit) => ({
+      id: unit.id,
+      d: Math.round(Math.hypot(unit.x - world.state.position.x, unit.y - world.state.position.y, unit.z - world.state.position.z)),
+      hp: Math.round(unit.hp),
+    })),
+    lock: combat.lockTarget?.id ?? null,
+    lockDistance: combat.lockTarget
+      ? Math.round(Math.hypot(combat.lockTarget.x - world.state.position.x,
+        combat.lockTarget.y - world.state.position.y, combat.lockTarget.z - world.state.position.z))
+      : null,
     stage: world.mission.stageIndex,
     error: firstError,
   };
