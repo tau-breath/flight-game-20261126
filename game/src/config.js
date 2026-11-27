@@ -35,7 +35,7 @@ function THREE_DEG(value) { return value * Math.PI / 180; }
 export const AIRCRAFT = Object.freeze({
   name: 'Kestrel Mk.I', fuselageLength: 8.4, noseRadius: 0.55, tailRadius: 0.18,
   wingSpan: 11, wingChord: 1.75, wingDihedral: THREE_DEG(1.5), propRadius: 1.25,
-  gearHeight: 1.25, eyeHeight: 2.05, eyeForward: 0.9,
+  gearHeight: 1.25, eyeHeight: 2.5, eyeForward: 1.2,
 });
 
 export const AIRFIELD = Object.freeze({
@@ -64,7 +64,7 @@ export const SKY = Object.freeze({
 
 export const CAMERA = Object.freeze({
   chaseBack: 15, chaseUp: 4.2, lookAhead: 18.2, lookUp: 2.4,
-  chaseFov: 60, speedFov: 72, cockpitFov: 64, cockpitLookAhead: 60, cockpitLookDown: 8.0, cockpitEyeSide: -0.12, stiffness: 8, bankRoll: 0.35,
+  chaseFov: 60, speedFov: 72, cockpitFov: 64, cockpitLookAhead: 60, cockpitLookDown: 14.0, cockpitEyeSide: -0.12, stiffness: 8, bankRoll: 0.35,
   stallShake: 0.11, near: 0.15, far: 9200,
 });
 
