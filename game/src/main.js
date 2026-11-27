@@ -445,6 +445,14 @@ window.__diag = () => {
       d: Math.round(Math.hypot(unit.x - world.state.position.x, unit.y - world.state.position.y, unit.z - world.state.position.z)),
       hp: Math.round(unit.hp),
     })),
+    tracers: {
+      active: combat.playerBullets.filter((bullet) => bullet.active).length,
+      draw: combat.playerTracers.geometry.drawRange.count,
+      sample: combat.playerBullets.filter((b) => b.active).slice(0, 2)
+        .map((b) => [Math.round(b.x), Math.round(b.y), Math.round(b.z)]),
+      visible: combat.playerTracers.lines.visible,
+      inScene: combat.playerTracers.lines.parent === scene,
+    },
     lock: combat.lockTarget?.id ?? null,
     lockDistance: combat.lockTarget
       ? Math.round(Math.hypot(combat.lockTarget.x - world.state.position.x,
