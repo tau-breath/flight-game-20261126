@@ -92,9 +92,9 @@ function prepareStrike(world, position, heading, speed) {
 }
 
 function stageStrike(world, systems) {
-  const mission = prepareStrike(world, [5050, 252, -70], 212, 80);
-  mission.ringsPassed = 2;
-  mission.activeRing = 2;
+  const mission = prepareStrike(world, [5500, 262, -1340], 200, 80);
+  mission.ringsPassed = 0;
+  mission.activeRing = 0;
   mission.stageIndex = 0;
   mission.stages[0].done = false;
   mission.goal = mission.stages[0].goal;
@@ -105,15 +105,15 @@ function stageStrike(world, systems) {
   const wing = systems.forces.byId.get('raider-2');
   hold(lead, 0.9);
   hold(wing, 0.35);
-  if (lead) placeCrossing(lead, world.state, 46, 11, 3.4, 126, -44);
+  if (lead) placeCrossing(lead, world.state, 52, 10, 3.0, 126, -44);
   if (wing) placeCrossing(wing, world.state, 148, -16, 4.6, -138, 32);
   advance(systems, 0.05, stick(true, 0.02, 0.02));
   forceLock(systems.combat, lead);
-  return { screen: 'FLYING', cameraMode: 'chase', ringIndex: 2, mission };
+  return { screen: 'FLYING', cameraMode: 'chase', ringIndex: 0, mission };
 }
 
 function stageGuns(world, systems) {
-  const mission = prepareStrike(world, [5080, 250, -180], 212, 76);
+  const mission = prepareStrike(world, [5470, 258, -1290], 200, 76);
   world.state.throttle = 0.7;
   world.state.damage = 26;
   advance(systems, 0.42, stick(true, 0.02, 0.01));
@@ -125,7 +125,7 @@ function stageGuns(world, systems) {
   if (wing) placeCrossing(wing, world.state, 190, -16, 4.6, -142, 28);
   advance(systems, 0.05, stick(true, 0.02, 0));
   forceLock(systems.combat, lead);
-  return { screen: 'FLYING', cameraMode: 'cockpit', ringIndex: 3, mission };
+  return { screen: 'FLYING', cameraMode: 'cockpit', ringIndex: 0, mission };
 }
 
 function stageMissile(world, systems) {
@@ -158,7 +158,7 @@ function stageMissile(world, systems) {
   advance(systems, 1.75, stick(false, 0.01, -0.02));
   advance(systems, 0.18, stick(false, 0.01, -0.02));
   forceLock(systems.combat, gunboat);
-  return { screen: 'FLYING', cameraMode: 'chase', ringIndex: 2, mission };
+  return { screen: 'FLYING', cameraMode: 'chase', ringIndex: 0, mission };
 }
 
 function stageRing(world, systems) {
