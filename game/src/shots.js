@@ -72,8 +72,9 @@ function advance(systems, seconds, input) {
   }
 }
 
-function prepareStrike(world) {
+function prepareStrike(world, position, heading, speed) {
   world.startMission(MB_STRIKE);
+  world.reset(position, heading, speed);
   world.state.gearDown = false;
   const mission = world.mission;
   mission.ringsPassed = 3;
@@ -91,8 +92,7 @@ function prepareStrike(world) {
 }
 
 function stageStrike(world, systems) {
-  world.reset([5050, 252, -70], 212, 80);
-  const mission = prepareStrike(world);
+  const mission = prepareStrike(world, [5050, 252, -70], 212, 80);
   mission.ringsPassed = 2;
   mission.activeRing = 2;
   mission.stageIndex = 0;
@@ -113,9 +113,7 @@ function stageStrike(world, systems) {
 }
 
 function stageGuns(world, systems) {
-  world.startMission(MB_STRIKE);
-  world.reset([5080, 250, -180], 212, 76);
-  const mission = prepareStrike(world);
+  const mission = prepareStrike(world, [5080, 250, -180], 212, 76);
   world.state.throttle = 0.7;
   world.state.damage = 26;
   advance(systems, 0.42, stick(true, 0.02, 0.01));
